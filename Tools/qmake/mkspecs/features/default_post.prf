@@ -42,6 +42,9 @@ root_project_file: finalizeConfigure()
 DEFINES += \
     BUILDING_QT__=1
 
+# Disabling JIT
+DEFINES += ENABLE_JIT=0
+
 CONFIG(release, debug|release): DEFINES *= NDEBUG
 
 DEFINES += $$configDefines()
