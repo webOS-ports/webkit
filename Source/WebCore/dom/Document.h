@@ -3,7 +3,7 @@
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2001 Dirk Mueller (mueller@kde.org)
  *           (C) 2006 Alexey Proskuryakov (ap@webkit.org)
- * Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012, 2013 Apple Inc. All rights reserved.
  * Copyright (C) 2008, 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
  * Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
  * Copyright (C) 2011 Google Inc. All rights reserved.
@@ -278,6 +278,7 @@ public:
     DEFINE_ATTRIBUTE_EVENT_LISTENER(scroll);
     DEFINE_ATTRIBUTE_EVENT_LISTENER(select);
     DEFINE_ATTRIBUTE_EVENT_LISTENER(submit);
+    DEFINE_ATTRIBUTE_EVENT_LISTENER(wheel);
 
     DEFINE_ATTRIBUTE_EVENT_LISTENER(blur);
     DEFINE_ATTRIBUTE_EVENT_LISTENER(error);
@@ -326,7 +327,7 @@ public:
     void setReferrerPolicy(ReferrerPolicy referrerPolicy) { m_referrerPolicy = referrerPolicy; }
     ReferrerPolicy referrerPolicy() const { return m_referrerPolicy; }
 
-    DocumentType* doctype() const { return m_docType.get(); }
+    DocumentType* doctype() const;
 
     DOMImplementation* implementation();
     
@@ -536,15 +537,11 @@ public:
 
     // Implemented in RenderView.h to avoid a cyclic header dependency this just
     // returns renderer so callers can avoid verbose casts.
-    RenderView* renderView() const;
+    RenderView* renderView() const { return m_renderView; }
 
+    // FIXME: Remove this, callers that have a Document* should call renderView().
     // Shadow the implementations on Node to provide faster access for documents.
-    RenderObject* renderer() const { return m_renderer; }
-    void setRenderer(RenderObject* renderer)
-    {
-        m_renderer = renderer;
-        Node::setRenderer(renderer);
-    }
+    RenderView* renderer() const { return m_renderView; }
 
     bool renderTreeBeingDestroyed() const { return m_renderTreeBeingDestroyed; }
 
@@ -600,7 +597,7 @@ public:
     bool canNavigate(Frame* targetFrame);
     Frame* findUnsafeParentScrollPropagationBoundary();
 
-    CSSStyleSheet* elementSheet();
+    CSSStyleSheet& elementSheet();
     
     virtual PassRefPtr<DocumentParser> createParser();
     DocumentParser* parser() const { return m_parser.get(); }
@@ -888,8 +885,6 @@ public:
     void incDOMTreeVersion() { m_domTreeVersion = ++s_globalTreeVersion; }
     uint64_t domTreeVersion() const { return m_domTreeVersion; }
 
-    void setDocType(PassRefPtr<DocumentType>);
-
     // XPathEvaluator methods
     PassRefPtr<XPathExpression> createExpression(const String& expression,
                                                  XPathNSResolver* resolver,
@@ -1161,13 +1156,6 @@ public:
     // Return a Locale for the default locale if the argument is null or empty.
     Locale& getCachedLocale(const AtomicString& locale = nullAtom);
 
-#if ENABLE(DIALOG_ELEMENT)
-    void addToTopLayer(Element*);
-    void removeFromTopLayer(Element*);
-    const Vector<RefPtr<Element> >& topLayerElements() const { return m_topLayerElements; }
-    Element* activeModalDialog() const { return !m_topLayerElements.isEmpty() ? m_topLayerElements.last().get() : 0; }
-#endif
-
 #if ENABLE(TEMPLATE_ELEMENT)
     const Document* templateDocument() const;
     Document* ensureTemplateDocument();
@@ -1198,6 +1186,9 @@ private:
     friend class Node;
     friend class IgnoreDestructiveWriteCountIncrementer;
 
+    void setRenderer(RenderObject*) WTF_DELETED_FUNCTION;
+    void setRenderView(RenderView*);
+
     virtual void createRenderTree();
     virtual void dispose() OVERRIDE;
 
@@ -1208,7 +1199,7 @@ private:
 
     virtual bool isDocument() const OVERRIDE { return true; }
 
-    virtual void childrenChanged(bool changedByParser = false, Node* beforeChange = 0, Node* afterChange = 0, int childCountDelta = 0);
+    virtual void childrenChanged(const ChildChange&) OVERRIDE;
 
     virtual String nodeName() const;
     virtual NodeType nodeType() const;
@@ -1313,10 +1304,9 @@ private:
 
     String m_baseTarget;
 
-    RefPtr<DocumentType> m_docType;
     OwnPtr<DOMImplementation> m_implementation;
 
-    RefPtr<CSSStyleSheet> m_elemSheet;
+    RefPtr<CSSStyleSheet> m_elementSheet;
 
     bool m_printing;
     bool m_paginatedForScreen;
@@ -1415,7 +1405,7 @@ private:
 
     String m_contentLanguage;
 
-    RenderObject* m_savedRenderer;
+    RenderView* m_savedRenderView;
     
     RefPtr<TextResourceDecoder> m_decoder;
 
@@ -1460,7 +1450,7 @@ private:
     bool m_sawElementsInKnownNamespaces;
     bool m_isSrcdocDocument;
 
-    RenderObject* m_renderer;
+    RenderView* m_renderView;
     RefPtr<DocumentEventQueue> m_eventQueue;
 
     WeakPtrFactory<Document> m_weakFactory;
@@ -1480,10 +1470,6 @@ private:
     bool m_isAnimatingFullScreen;
     LayoutRect m_savedPlaceholderFrameRect;
     RefPtr<RenderStyle> m_savedPlaceholderRenderStyle;
-#endif
-
-#if ENABLE(DIALOG_ELEMENT)
-    Vector<RefPtr<Element> > m_topLayerElements;
 #endif
 
     int m_loadEventDelayCount;
@@ -1637,5 +1623,9 @@ inline Node::Node(Document* document, ConstructionType type)
 Node* eventTargetNodeForDocument(Document*);
 
 } // namespace WebCore
+
+namespace WTF {
+inline WebCore::Document* getPtr(WebCore::Document& p) { return &p; }
+}
 
 #endif // Document_h

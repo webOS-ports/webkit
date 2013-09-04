@@ -993,7 +993,7 @@ void RenderBlock::deleteLineBoxTree()
         const FloatingObjectSet& floatingObjectSet = m_floatingObjects->set();
         FloatingObjectSetIterator end = floatingObjectSet.end();
         for (FloatingObjectSetIterator it = floatingObjectSet.begin(); it != end; ++it) {
-            ASSERT(!((*it)->originatingLine()) || (*it)->originatingLine()->renderer() == this);
+            ASSERT(!((*it)->originatingLine()) || &(*it)->originatingLine()->renderer() == this);
             (*it)->setOriginatingLine(0);
         }
     }
@@ -1005,7 +1005,7 @@ void RenderBlock::deleteLineBoxTree()
 
 RootInlineBox* RenderBlock::createRootInlineBox()
 {
-    return new (renderArena()) RootInlineBox(this);
+    return new (renderArena()) RootInlineBox(*this);
 }
 
 RootInlineBox* RenderBlock::createAndAppendRootInlineBox()
@@ -1434,6 +1434,50 @@ void RenderBlock::layout()
 }
 
 #if ENABLE(CSS_SHAPES)
+void RenderBlock::relayoutShapeDescendantIfMoved(RenderBlock* child, LayoutSize offset)
+{
+    LayoutUnit left = isHorizontalWritingMode() ? offset.width() : offset.height();
+    if (!left || !child || child->shapeInsideInfo() || !layoutShapeInsideInfo())
+        return;
+    // Propagate layout markers only up to the child, as we are still in the middle
+    // of a layout pass
+    child->setNormalChildNeedsLayout(true);
+    child->markShapeInsideDescendantsForLayout();
+    child->layoutIfNeeded();
+}
+
+LayoutSize RenderBlock::logicalOffsetFromShapeAncestorContainer(const RenderBlock* container) const
+{
+    const RenderBlock* currentBlock = this;
+    LayoutRect blockRect(currentBlock->borderBoxRect());
+    while (currentBlock && !currentBlock->isRenderFlowThread() && currentBlock != container) {
+        RenderBlock* containerBlock = currentBlock->containingBlock();
+        ASSERT(containerBlock);
+        if (!containerBlock)
+            return LayoutSize();
+
+        if (containerBlock->style()->writingMode() != currentBlock->style()->writingMode()) {
+            // We have to put the block rect in container coordinates
+            // and we have to take into account both the container and current block flipping modes
+            // Bug 118073: Flipping inline and block directions at the same time will not work,
+            // as one of the flipped dimensions will not yet have been set to its final size
+            if (containerBlock->style()->isFlippedBlocksWritingMode()) {
+                if (containerBlock->isHorizontalWritingMode())
+                    blockRect.setY(currentBlock->height() - blockRect.maxY());
+                else
+                    blockRect.setX(currentBlock->width() - blockRect.maxX());
+            }
+            currentBlock->flipForWritingMode(blockRect);
+        }
+
+        blockRect.moveBy(currentBlock->location());
+        currentBlock = containerBlock;
+    }
+
+    LayoutSize result = isHorizontalWritingMode() ? LayoutSize(blockRect.x(), blockRect.y()) : LayoutSize(blockRect.y(), blockRect.x());
+    return result;
+}
+
 void RenderBlock::imageChanged(WrappedImagePtr image, const IntRect*)
 {
     RenderBox::imageChanged(image);
@@ -1786,7 +1830,7 @@ void RenderBlock::addOverflowFromChildren()
 
 void RenderBlock::computeOverflow(LayoutUnit oldClientAfterEdge, bool recomputeFloats)
 {
-    m_overflow.clear();
+    clearOverflow();
 
     // Add overflow from children.
     addOverflowFromChildren();
@@ -1836,7 +1880,8 @@ void RenderBlock::clearLayoutOverflow()
         return;
     
     if (visualOverflowRect() == borderBoxRect()) {
-        m_overflow.clear();
+        // FIXME: Implement complete solution for regions overflow.
+        clearOverflow();
         return;
     }
     
@@ -1894,6 +1939,9 @@ void RenderBlock::addVisualOverflowFromTheme()
     IntRect inflatedRect = pixelSnappedBorderBoxRect();
     theme()->adjustRepaintRect(this, inflatedRect);
     addVisualOverflow(inflatedRect);
+
+    if (RenderFlowThread* flowThread = flowThreadContainingBlock())
+        flowThread->addRegionsVisualOverflowFromTheme(this);
 }
 
 bool RenderBlock::expandsToEncloseOverhangingFloats() const
@@ -2729,6 +2777,11 @@ void RenderBlock::layoutBlockChild(RenderBox* child, MarginInfo& marginInfo, Lay
     // Now place the child in the correct left position
     determineLogicalLeftPositionForChild(child, ApplyLayoutDelta);
 
+    LayoutSize childOffset = child->location() - oldRect.location();
+#if ENABLE(CSS_SHAPES)
+    relayoutShapeDescendantIfMoved(childRenderBlock, childOffset);
+#endif
+
     // Update our height now that the child has been placed in the correct position.
     setLogicalHeight(logicalHeight() + logicalHeightForChild(child));
     if (mustSeparateMarginAfterForChild(child)) {
@@ -2740,7 +2793,6 @@ void RenderBlock::layoutBlockChild(RenderBox* child, MarginInfo& marginInfo, Lay
     if (childRenderBlock && childRenderBlock->containsFloats())
         maxFloatLogicalBottom = max(maxFloatLogicalBottom, addOverhangingFloats(toRenderBlock(child), !childNeededLayout));
 
-    LayoutSize childOffset = child->location() - oldRect.location();
     if (childOffset.width() || childOffset.height()) {
         view().addLayoutDelta(childOffset);
 
@@ -4124,7 +4176,7 @@ void RenderBlock::removeFloatingObject(RenderBox* o)
                 }
                 if (r->originatingLine()) {
                     if (!selfNeedsLayout()) {
-                        ASSERT(r->originatingLine()->renderer() == this);
+                        ASSERT(&r->originatingLine()->renderer() == this);
                         r->originatingLine()->markDirty();
                     }
 #if !ASSERT_DISABLED
@@ -4439,7 +4491,7 @@ inline static bool rangesIntersect(int floatTop, int floatBottom, int objectTop,
 }
 
 template<>
-inline bool RenderBlock::FloatIntervalSearchAdapter<RenderBlock::FloatingObject::FloatLeft>::updateOffsetIfNeeded(const FloatingObject* floatingObject)
+inline bool RenderBlock::ComputeFloatOffsetAdapter<RenderBlock::FloatingObject::FloatLeft>::updateOffsetIfNeeded(const FloatingObject* floatingObject)
 {
     LayoutUnit logicalRight = m_renderer->logicalRightForFloat(floatingObject);
     if (logicalRight > m_offset) {
@@ -4450,7 +4502,7 @@ inline bool RenderBlock::FloatIntervalSearchAdapter<RenderBlock::FloatingObject:
 }
 
 template<>
-inline bool RenderBlock::FloatIntervalSearchAdapter<RenderBlock::FloatingObject::FloatRight>::updateOffsetIfNeeded(const FloatingObject* floatingObject)
+inline bool RenderBlock::ComputeFloatOffsetAdapter<RenderBlock::FloatingObject::FloatRight>::updateOffsetIfNeeded(const FloatingObject* floatingObject)
 {
     LayoutUnit logicalLeft = m_renderer->logicalLeftForFloat(floatingObject);
     if (logicalLeft < m_offset) {
@@ -4461,15 +4513,15 @@ inline bool RenderBlock::FloatIntervalSearchAdapter<RenderBlock::FloatingObject:
 }
 
 template <RenderBlock::FloatingObject::Type FloatTypeValue>
-inline void RenderBlock::FloatIntervalSearchAdapter<FloatTypeValue>::collectIfNeeded(const IntervalType& interval)
+inline void RenderBlock::ComputeFloatOffsetAdapter<FloatTypeValue>::collectIfNeeded(const IntervalType& interval)
 {
     const FloatingObject* floatingObject = interval.data();
-    if (floatingObject->type() != FloatTypeValue || !rangesIntersect(interval.low(), interval.high(), m_lowValue, m_highValue))
+    if (floatingObject->type() != FloatTypeValue || !rangesIntersect(interval.low(), interval.high(), m_lineTop, m_lineBottom))
         return;
 
     // All the objects returned from the tree should be already placed.
     ASSERT(floatingObject->isPlaced());
-    ASSERT(rangesIntersect(m_renderer->pixelSnappedLogicalTopForFloat(floatingObject), m_renderer->pixelSnappedLogicalBottomForFloat(floatingObject), m_lowValue, m_highValue));
+    ASSERT(rangesIntersect(m_renderer->pixelSnappedLogicalTopForFloat(floatingObject), m_renderer->pixelSnappedLogicalBottomForFloat(floatingObject), m_lineTop, m_lineBottom));
 
     bool floatIsNewExtreme = updateOffsetIfNeeded(floatingObject);
     if (floatIsNewExtreme)
@@ -4477,9 +4529,9 @@ inline void RenderBlock::FloatIntervalSearchAdapter<FloatTypeValue>::collectIfNe
 }
 
 template <RenderBlock::FloatingObject::Type FloatTypeValue>
-LayoutUnit RenderBlock::FloatIntervalSearchAdapter<FloatTypeValue>::getHeightRemaining() const
+LayoutUnit RenderBlock::ComputeFloatOffsetAdapter<FloatTypeValue>::getHeightRemaining() const
 {
-    return m_outermostFloat ? m_renderer->logicalBottomForFloat(m_outermostFloat) - m_lowValue : LayoutUnit(1);
+    return m_outermostFloat ? m_renderer->logicalBottomForFloat(m_outermostFloat) - m_lineTop : LayoutUnit(1);
 }
 
 LayoutUnit RenderBlock::textIndentOffset() const
@@ -4519,7 +4571,7 @@ LayoutUnit RenderBlock::logicalLeftFloatOffsetForLine(LayoutUnit logicalTop, Lay
 #endif
     LayoutUnit left = fixedOffset;
     if (m_floatingObjects && m_floatingObjects->hasLeftObjects()) {
-        FloatIntervalSearchAdapter<FloatingObject::FloatLeft> adapter(this, roundToInt(logicalTop), roundToInt(logicalTop + logicalHeight), left);
+        ComputeFloatOffsetAdapter<FloatingObject::FloatLeft> adapter(this, roundToInt(logicalTop), roundToInt(logicalTop + logicalHeight), left);
         m_floatingObjects->placedFloatsTree().allOverlapsWithAdapter(adapter);
 
         if (heightRemaining)
@@ -4587,7 +4639,7 @@ LayoutUnit RenderBlock::logicalRightFloatOffsetForLine(LayoutUnit logicalTop, La
     LayoutUnit right = fixedOffset;
     if (m_floatingObjects && m_floatingObjects->hasRightObjects()) {
         LayoutUnit rightFloatOffset = fixedOffset;
-        FloatIntervalSearchAdapter<FloatingObject::FloatRight> adapter(this, roundToInt(logicalTop), roundToInt(logicalTop + logicalHeight), rightFloatOffset);
+        ComputeFloatOffsetAdapter<FloatingObject::FloatRight> adapter(this, roundToInt(logicalTop), roundToInt(logicalTop + logicalHeight), rightFloatOffset);
         m_floatingObjects->placedFloatsTree().allOverlapsWithAdapter(adapter);
 
         if (heightRemaining)
@@ -4811,7 +4863,7 @@ void RenderBlock::clearFloats()
 
                     floatMap.remove(f->renderer());
                     if (oldFloatingObject->originatingLine() && !selfNeedsLayout()) {
-                        ASSERT(oldFloatingObject->originatingLine()->renderer() == this);
+                        ASSERT(&oldFloatingObject->originatingLine()->renderer() == this);
                         oldFloatingObject->originatingLine()->markDirty();
                     }
                     delete oldFloatingObject;
@@ -5243,9 +5295,8 @@ bool RenderBlock::hitTestFloats(const HitTestRequest& request, HitTestResult& re
         return false;
 
     LayoutPoint adjustedLocation = accumulatedOffset;
-    if (isRenderView()) {
-        adjustedLocation += toLayoutSize(toRenderView(this)->frameView().scrollPosition());
-    }
+    if (isRenderView())
+        adjustedLocation += toLayoutSize(toRenderView(*this).frameView().scrollPosition());
 
     const FloatingObjectSet& floatingObjectSet = m_floatingObjects->set();
     FloatingObjectSetIterator begin = floatingObjectSet.begin();
@@ -5384,14 +5435,14 @@ Position RenderBlock::positionForBox(InlineBox *box, bool start) const
     if (!box)
         return Position();
 
-    if (!box->renderer()->nonPseudoNode())
+    if (!box->renderer().nonPseudoNode())
         return createLegacyEditingPosition(nonPseudoNode(), start ? caretMinOffset() : caretMaxOffset());
 
     if (!box->isInlineTextBox())
-        return createLegacyEditingPosition(box->renderer()->nonPseudoNode(), start ? box->renderer()->caretMinOffset() : box->renderer()->caretMaxOffset());
+        return createLegacyEditingPosition(box->renderer().nonPseudoNode(), start ? box->renderer().caretMinOffset() : box->renderer().caretMaxOffset());
 
     InlineTextBox* textBox = toInlineTextBox(box);
-    return createLegacyEditingPosition(box->renderer()->nonPseudoNode(), start ? textBox->start() : textBox->start() + textBox->len());
+    return createLegacyEditingPosition(box->renderer().nonPseudoNode(), start ? textBox->start() : textBox->start() + textBox->len());
 }
 
 static inline bool isEditingBoundary(RenderObject* ancestor, RenderObject* child)
@@ -5506,9 +5557,9 @@ VisiblePosition RenderBlock::positionForPointWithInlineChildren(const LayoutPoin
         LayoutPoint point(pointInLogicalContents.x(), closestBox->root()->blockDirectionPointInLine());
         if (!isHorizontalWritingMode())
             point = point.transposedPoint();
-        if (closestBox->renderer()->isReplaced())
-            return positionForPointRespectingEditingBoundaries(this, toRenderBox(closestBox->renderer()), point);
-        return closestBox->renderer()->positionForPoint(point);
+        if (closestBox->renderer().isReplaced())
+            return positionForPointRespectingEditingBoundaries(this, &toRenderBox(closestBox->renderer()), point);
+        return closestBox->renderer().positionForPoint(point);
     }
 
     if (lastRootBoxWithChildren) {
@@ -5806,7 +5857,7 @@ bool RenderBlock::relayoutForPagination(bool hasSpecifiedPageLogicalHeight, Layo
 
     if (columnCount(colInfo)) {
         setLogicalHeight(borderAndPaddingBefore() + colInfo->columnHeight() + borderAndPaddingAfter() + scrollbarLogicalHeight());
-        m_overflow.clear();
+        clearOverflow();
     } else
         m_overflow = savedOverflow.release();
     
@@ -6039,6 +6090,8 @@ void RenderBlock::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, Lay
 
     maxLogicalWidth = max(minLogicalWidth, maxLogicalWidth);
 
+    adjustIntrinsicLogicalWidthsForColumns(minLogicalWidth, maxLogicalWidth);
+
     if (!style()->autoWrap() && childrenInline()) {
         // A horizontal marquee with inline children has no minimum width.
         if (layer() && layer()->marquee() && layer()->marquee()->isHorizontal())
@@ -6093,6 +6146,33 @@ void RenderBlock::computePreferredLogicalWidths()
     m_maxPreferredLogicalWidth += borderAndPadding;
 
     setPreferredLogicalWidthsDirty(false);
+}
+
+void RenderBlock::adjustIntrinsicLogicalWidthsForColumns(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
+{
+    // FIXME: make this method virtual and move the code to RenderMultiColumnBlock once the old
+    // multicol code is gone.
+
+    if (!style()->hasAutoColumnCount() || !style()->hasAutoColumnWidth()) {
+        // The min/max intrinsic widths calculated really tell how much space elements need when
+        // laid out inside the columns. In order to eventually end up with the desired column width,
+        // we need to convert them to values pertaining to the multicol container.
+        int columnCount = style()->hasAutoColumnCount() ? 1 : style()->columnCount();
+        LayoutUnit columnWidth;
+        LayoutUnit gapExtra = (columnCount - 1) * columnGap();
+        if (style()->hasAutoColumnWidth())
+            minLogicalWidth = minLogicalWidth * columnCount + gapExtra;
+        else {
+            columnWidth = style()->columnWidth();
+            minLogicalWidth = min(minLogicalWidth, columnWidth);
+        }
+        // FIXME: If column-count is auto here, we should resolve it to calculate the maximum
+        // intrinsic width, instead of pretending that it's 1. The only way to do that is by
+        // performing a layout pass, but this is not an appropriate time or place for layout. The
+        // good news is that if height is unconstrained and there are no explicit breaks, the
+        // resolved column-count really should be 1.
+        maxLogicalWidth = max(maxLogicalWidth, columnWidth) * columnCount + gapExtra;
+    }
 }
 
 struct InlineMinMaxIterator {
@@ -6400,7 +6480,7 @@ void RenderBlock::computeInlinePreferredLogicalWidths(LayoutUnit& minLogicalWidt
                 }
 
                 if (t->style()->hasTextCombine() && t->isCombineText())
-                    toRenderCombineText(t)->combineText();
+                    toRenderCombineText(*t).combineText();
 
                 // Determine if we have a breakable character.  Pass in
                 // whether or not we should ignore any spaces at the front
@@ -7453,7 +7533,7 @@ void RenderBlock::addFocusRingRects(Vector<IntRect>& rects, const LayoutPoint& a
         // FIXME: This is wrong. The principal renderer may not be the continuation preceding this block.
         // FIXME: This is wrong for block-flows that are horizontal.
         // https://bugs.webkit.org/show_bug.cgi?id=46781
-        bool prevInlineHasLineBox = toRenderInline(inlineElementContinuation()->node()->renderer())->firstLineBox(); 
+        bool prevInlineHasLineBox = toRenderInline(inlineElementContinuation()->node()->renderer())->firstLineBox();
         float topMargin = prevInlineHasLineBox ? collapsedMarginBefore() : LayoutUnit();
         float bottomMargin = nextInlineHasLineBox ? collapsedMarginAfter() : LayoutUnit();
         LayoutRect rect(additionalOffset.x(), additionalOffset.y() - topMargin, width(), height() + topMargin + bottomMargin);

@@ -324,7 +324,7 @@ public:
     String name() const;
 
     RenderLayerModelObject& renderer() const { return m_renderer; }
-    RenderBox* renderBox() const { return renderer().isBox() ? toRenderBox(&renderer()) : 0; }
+    RenderBox* renderBox() const { return renderer().isBox() ? &toRenderBox(renderer()) : 0; }
     RenderLayer* parent() const { return m_parent; }
     RenderLayer* previousSibling() const { return m_previous; }
     RenderLayer* nextSibling() const { return m_next; }
@@ -598,10 +598,12 @@ public:
             ;
     }
 
-    void convertToPixelSnappedLayerCoords(const RenderLayer* ancestorLayer, IntPoint& location) const;
-    void convertToPixelSnappedLayerCoords(const RenderLayer* ancestorLayer, IntRect&) const;
-    void convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutPoint& location) const;
-    void convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutRect&) const;
+    // FIXME: adjustForColumns allows us to position compositing layers in columns correctly, but eventually they need to be split across columns too.
+    enum ColumnOffsetAdjustment { DontAdjustForColumns, AdjustForColumns };
+    void convertToPixelSnappedLayerCoords(const RenderLayer* ancestorLayer, IntPoint& location, ColumnOffsetAdjustment adjustForColumns = DontAdjustForColumns) const;
+    void convertToPixelSnappedLayerCoords(const RenderLayer* ancestorLayer, IntRect&, ColumnOffsetAdjustment adjustForColumns = DontAdjustForColumns) const;
+    void convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutPoint&, ColumnOffsetAdjustment adjustForColumns = DontAdjustForColumns) const;
+    void convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutRect&, ColumnOffsetAdjustment adjustForColumns = DontAdjustForColumns) const;
 
     int zIndex() const { return renderer().style()->zIndex(); }
 
@@ -819,11 +821,6 @@ public:
 
     Node* enclosingElement() const;
 
-#if ENABLE(DIALOG_ELEMENT)
-    bool isInTopLayer() const;
-    bool isInTopLayerSubtree() const;
-#endif
-
 #if USE(ACCELERATED_COMPOSITING)
     enum ViewportConstrainedNotCompositedReason {
         NoNotCompositedReason,
@@ -912,7 +909,7 @@ private:
     void setFirstChild(RenderLayer* first) { m_first = first; }
     void setLastChild(RenderLayer* last) { m_last = last; }
 
-    LayoutPoint renderBoxLocation() const { return renderer().isBox() ? toRenderBox(&renderer())->location() : LayoutPoint(); }
+    LayoutPoint renderBoxLocation() const { return renderer().isBox() ? toRenderBox(renderer()).location() : LayoutPoint(); }
 
     void collectLayers(bool includeHiddenLayers, CollectLayersBehavior, OwnPtr<Vector<RenderLayer*> >&, OwnPtr<Vector<RenderLayer*> >&);
 
@@ -947,6 +944,7 @@ private:
 #endif
 
     void paintLayer(GraphicsContext*, const LayerPaintingInfo&, PaintLayerFlags);
+    void paintFixedLayersInNamedFlows(GraphicsContext*, const LayerPaintingInfo&, PaintLayerFlags);
     void paintLayerContentsAndReflection(GraphicsContext*, const LayerPaintingInfo&, PaintLayerFlags);
     void paintLayerByApplyingTransform(GraphicsContext*, const LayerPaintingInfo&, PaintLayerFlags, const LayoutPoint& translationOffset = LayoutPoint());
     void paintLayerContents(GraphicsContext*, const LayerPaintingInfo&, PaintLayerFlags);
@@ -986,6 +984,14 @@ private:
                                           const LayoutRect& hitTestRect, const HitTestLocation&,
                                           const HitTestingTransformState* transformState, double* zOffset,
                                           const Vector<RenderLayer*>& columnLayers, size_t columnIndex);
+
+    RenderLayer* hitTestFixedLayersInNamedFlows(RenderLayer* rootLayer,
+        const HitTestRequest&, HitTestResult&,
+        const LayoutRect& hitTestRect, const HitTestLocation&,
+        const HitTestingTransformState*,
+        double* zOffsetForDescendants, double* zOffset,
+        const HitTestingTransformState* unflattenedTransformState,
+        bool depthSortDescendants);
 
     PassRefPtr<HitTestingTransformState> createLocalTransformState(RenderLayer* rootLayer, RenderLayer* containerLayer,
                             const LayoutRect& hitTestRect, const HitTestLocation&,

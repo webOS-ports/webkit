@@ -182,10 +182,37 @@ CallType JSFunction::getCallData(JSCell* cell, CallData& callData)
     return CallTypeJS;
 }
 
+class RetrieveArgumentsFunctor {
+public:
+    RetrieveArgumentsFunctor(JSFunction* functionObj)
+        : m_targetCallee(jsDynamicCast<JSObject*>(functionObj))
+        , m_result(jsNull())
+    {
+    }
+
+    JSValue result() const { return m_result; }
+
+    StackIterator::Status operator()(StackIterator& iter)
+    {
+        JSObject* callee = iter->callee();
+        if (callee != m_targetCallee)
+            return StackIterator::Continue;
+
+        m_result = JSValue(iter->arguments());
+        return StackIterator::Done;
+    }
+
+private:
+    JSObject* m_targetCallee;
+    JSValue m_result;
+};
+
 static JSValue retrieveArguments(ExecState* exec, JSFunction* functionObj)
 {
-    StackIterator iter = exec->find(functionObj);
-    return iter != exec->end() ? JSValue(iter->arguments()) : jsNull();
+    RetrieveArgumentsFunctor functor(functionObj);
+    StackIterator iter = exec->begin();
+    iter.iterate(functor);
+    return functor.result();
 }
 
 JSValue JSFunction::argumentsGetter(ExecState* exec, JSValue slotBase, PropertyName)
@@ -203,12 +230,48 @@ static bool skipOverBoundFunctions(StackIterator::Frame* frame)
     return shouldSkip;
 }
 
+class RetrieveCallerFunctionFunctor {
+public:
+    RetrieveCallerFunctionFunctor(JSFunction* functionObj)
+        : m_targetCallee(jsDynamicCast<JSObject*>(functionObj))
+        , m_hasFoundFrame(false)
+        , m_hasSkippedToCallerFrame(false)
+        , m_result(jsNull())
+    {
+    }
+
+    JSValue result() const { return m_result; }
+
+    StackIterator::Status operator()(StackIterator& iter)
+    {
+        JSObject* callee = iter->callee();
+        if (!m_hasFoundFrame && (callee != m_targetCallee))
+            return StackIterator::Continue;
+
+        m_hasFoundFrame = true;
+        if (!m_hasSkippedToCallerFrame) {
+            m_hasSkippedToCallerFrame = true;
+            return StackIterator::Continue;
+        }
+
+        if (callee)
+            m_result = callee;
+        return StackIterator::Done;
+    }
+
+private:
+    JSObject* m_targetCallee;
+    bool m_hasFoundFrame;
+    bool m_hasSkippedToCallerFrame;
+    JSValue m_result;
+};
+
 static JSValue retrieveCallerFunction(ExecState* exec, JSFunction* functionObj)
 {
-    StackIterator iter = exec->find(functionObj, skipOverBoundFunctions);
-    if (iter != exec->end())
-        ++iter;
-    return iter != exec->end() && iter->callee() ? iter->callee() : jsNull();
+    RetrieveCallerFunctionFunctor functor(functionObj);
+    StackIterator iter = exec->begin(skipOverBoundFunctions);
+    iter.iterate(functor);
+    return functor.result();
 }
 
 JSValue JSFunction::callerGetter(ExecState* exec, JSValue slotBase, PropertyName)
@@ -408,27 +471,27 @@ bool JSFunction::defineOwnProperty(JSObject* object, ExecState* exec, PropertyNa
      
     if (descriptor.configurablePresent() && descriptor.configurable()) {
         if (throwException)
-            throwError(exec, createTypeError(exec, ASCIILiteral("Attempting to configurable attribute of unconfigurable property.")));
+            exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Attempting to configurable attribute of unconfigurable property.")));
         return false;
     }
     if (descriptor.enumerablePresent() && descriptor.enumerable()) {
         if (throwException)
-            throwError(exec, createTypeError(exec, ASCIILiteral("Attempting to change enumerable attribute of unconfigurable property.")));
+            exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Attempting to change enumerable attribute of unconfigurable property.")));
         return false;
     }
     if (descriptor.isAccessorDescriptor()) {
         if (throwException)
-            throwError(exec, createTypeError(exec, ASCIILiteral("Attempting to change access mechanism for an unconfigurable property.")));
+            exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Attempting to change access mechanism for an unconfigurable property.")));
         return false;
     }
     if (descriptor.writablePresent() && descriptor.writable()) {
         if (throwException)
-            throwError(exec, createTypeError(exec, ASCIILiteral("Attempting to change writable attribute of unconfigurable property.")));
+            exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Attempting to change writable attribute of unconfigurable property.")));
         return false;
     }
     if (!valueCheck) {
         if (throwException)
-            throwError(exec, createTypeError(exec, ASCIILiteral("Attempting to change value of a readonly property.")));
+            exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Attempting to change value of a readonly property.")));
         return false;
     }
     return true;

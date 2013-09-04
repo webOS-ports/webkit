@@ -505,6 +505,9 @@ bool RenderStyle::changeRequiresLayout(const RenderStyle* other, unsigned& chang
 #endif
             || rareInheritedData->m_lineSnap != other->rareInheritedData->m_lineSnap
             || rareInheritedData->m_lineAlign != other->rareInheritedData->m_lineAlign
+#if ENABLE(ACCELERATED_OVERFLOW_SCROLLING)
+            || rareInheritedData->useTouchOverflowScrolling != other->rareInheritedData->useTouchOverflowScrolling
+#endif
             || rareInheritedData->listStyleImage != other->rareInheritedData->listStyleImage)
             return true;
 
@@ -701,6 +704,7 @@ bool RenderStyle::changeRequiresRepaint(const RenderStyle* other, unsigned&) con
         || rareInheritedData->userSelect != other->rareInheritedData->userSelect
         || rareNonInheritedData->userDrag != other->rareNonInheritedData->userDrag
         || rareNonInheritedData->m_borderFit != other->rareNonInheritedData->m_borderFit
+        || rareNonInheritedData->m_objectFit != other->rareNonInheritedData->m_objectFit
         || rareInheritedData->m_imageRendering != other->rareInheritedData->m_imageRendering)
         return true;
 

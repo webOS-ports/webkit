@@ -105,6 +105,7 @@
 #include <wtf/CurrentTime.h>
 #include <wtf/MainThread.h>
 #include <wtf/MathExtras.h>
+#include <wtf/Ref.h>
 #include <wtf/text/Base64.h>
 #include <wtf/text/WTFString.h>
 
@@ -174,52 +175,38 @@ static DOMWindowSet& windowsWithBeforeUnloadEventListeners()
 
 static void addUnloadEventListener(DOMWindow* domWindow)
 {
-    DOMWindowSet& set = windowsWithUnloadEventListeners();
-    if (set.add(domWindow).isNewEntry)
+    if (windowsWithUnloadEventListeners().add(domWindow).isNewEntry)
         domWindow->disableSuddenTermination();
 }
 
 static void removeUnloadEventListener(DOMWindow* domWindow)
 {
-    DOMWindowSet& set = windowsWithUnloadEventListeners();
-    DOMWindowSet::iterator it = set.find(domWindow);
-    if (set.remove(it))
+    if (windowsWithUnloadEventListeners().remove(domWindow))
         domWindow->enableSuddenTermination();
 }
 
 static void removeAllUnloadEventListeners(DOMWindow* domWindow)
 {
-    DOMWindowSet& set = windowsWithUnloadEventListeners();
-    DOMWindowSet::iterator it = set.find(domWindow);
-    if (it == set.end())
-        return;
-    set.removeAll(it);
-    domWindow->enableSuddenTermination();
+    if (windowsWithUnloadEventListeners().removeAll(domWindow))
+        domWindow->enableSuddenTermination();
 }
 
 static void addBeforeUnloadEventListener(DOMWindow* domWindow)
 {
-    DOMWindowSet& set = windowsWithBeforeUnloadEventListeners();
-    if (set.add(domWindow).isNewEntry)
+    if (windowsWithBeforeUnloadEventListeners().add(domWindow).isNewEntry)
         domWindow->disableSuddenTermination();
 }
 
 static void removeBeforeUnloadEventListener(DOMWindow* domWindow)
 {
-    DOMWindowSet& set = windowsWithBeforeUnloadEventListeners();
-    DOMWindowSet::iterator it = set.find(domWindow);
-    if (set.remove(it))
+    if (windowsWithBeforeUnloadEventListeners().remove(domWindow))
         domWindow->enableSuddenTermination();
 }
 
 static void removeAllBeforeUnloadEventListeners(DOMWindow* domWindow)
 {
-    DOMWindowSet& set = windowsWithBeforeUnloadEventListeners();
-    DOMWindowSet::iterator it = set.find(domWindow);
-    if (it == set.end())
-        return;
-    set.removeAll(it);
-    domWindow->enableSuddenTermination();
+    if (windowsWithBeforeUnloadEventListeners().removeAll(domWindow))
+        domWindow->enableSuddenTermination();
 }
 
 static bool allowsBeforeUnloadListeners(DOMWindow* window)
@@ -231,7 +218,7 @@ static bool allowsBeforeUnloadListeners(DOMWindow* window)
     Page* page = frame->page();
     if (!page)
         return false;
-    return frame == &page->mainFrame();
+    return page->frameIsMainFrame(frame);
 }
 
 bool DOMWindow::dispatchAllPendingBeforeUnloadEvents()
@@ -931,7 +918,7 @@ void DOMWindow::focus(ScriptExecutionContext* context)
     }
 
     // If we're a top level window, bring the window to the front.
-    if (m_frame == &page->mainFrame() && allowFocus)
+    if (page->frameIsMainFrame(m_frame) && allowFocus)
         page->chrome().focus();
 
     if (!m_frame)
@@ -1624,7 +1611,7 @@ bool DOMWindow::addEventListener(const AtomicString& eventType, PassRefPtr<Event
 
     if (Document* document = this->document()) {
         document->addListenerTypeIfNeeded(eventType);
-        if (eventType == eventNames().mousewheelEvent)
+        if (eventType == eventNames().wheelEvent || eventType == eventNames().mousewheelEvent)
             document->didAddWheelEventHandler();
         else if (eventNames().isTouchEventType(eventType))
             document->didAddTouchEventHandler(document);
@@ -1662,7 +1649,7 @@ bool DOMWindow::removeEventListener(const AtomicString& eventType, EventListener
         return false;
 
     if (Document* document = this->document()) {
-        if (eventType == eventNames().mousewheelEvent)
+        if (eventType == eventNames().wheelEvent || eventType == eventNames().mousewheelEvent)
             document->didRemoveWheelEventHandler();
         else if (eventNames().isTouchEventType(eventType))
             document->didRemoveTouchEventHandler(document);
@@ -1718,7 +1705,7 @@ void DOMWindow::dispatchLoadEvent()
 
 bool DOMWindow::dispatchEvent(PassRefPtr<Event> prpEvent, PassRefPtr<EventTarget> prpTarget)
 {
-    RefPtr<EventTarget> protect = this;
+    Ref<EventTarget> protect(*this);
     RefPtr<Event> event = prpEvent;
 
     event->setTarget(prpTarget ? prpTarget : this);

@@ -679,7 +679,7 @@ RootInlineBox* RenderBlock::constructLine(BidiRunList<BidiRun>& bidiRuns, const 
         if (!box)
             continue;
 
-        if (!rootHasSelectedChildren && box->renderer()->selectionState() != RenderObject::SelectionNone)
+        if (!rootHasSelectedChildren && box->renderer().selectionState() != RenderObject::SelectionNone)
             rootHasSelectedChildren = true;
 
         // If we have no parent box yet, or if the run is not simply a sibling,
@@ -691,7 +691,7 @@ RootInlineBox* RenderBlock::constructLine(BidiRunList<BidiRun>& bidiRuns, const 
 #else
         bool runStartsSegment = false;
 #endif
-        if (!parentBox || parentBox->renderer() != r->m_object->parent() || runStartsSegment)
+        if (!parentBox || &parentBox->renderer() != r->m_object->parent() || runStartsSegment)
             // Create new inline boxes all the way back to the appropriate insertion point.
             parentBox = createLineBoxes(r->m_object->parent(), lineInfo, box, runStartsSegment);
         else {
@@ -1599,9 +1599,9 @@ void RenderBlock::layoutRunsAndFloats(LineLayoutState& layoutState, bool hasInli
         // adjust the height accordingly.
         // A line break can be either the first or the last object on a line, depending on its direction.
         if (InlineBox* lastLeafChild = lastRootBox()->lastLeafChild()) {
-            RenderObject* lastObject = lastLeafChild->renderer();
+            RenderObject* lastObject = &lastLeafChild->renderer();
             if (!lastObject->isBR())
-                lastObject = lastRootBox()->firstLeafChild()->renderer();
+                lastObject = &lastRootBox()->firstLeafChild()->renderer();
             if (lastObject->isBR()) {
                 EClear clear = lastObject->style()->clear();
                 if (clear != CNONE)
@@ -1678,7 +1678,7 @@ static inline void pushShapeContentOverflowBelowTheContentBox(RenderBlock* block
     block->setLogicalHeight(newLogicalHeight);
 }
 
-void RenderBlock::updateShapeAndSegmentsForCurrentLine(ShapeInsideInfo*& shapeInsideInfo, LayoutUnit& absoluteLogicalTop, LineLayoutState& layoutState)
+void RenderBlock::updateShapeAndSegmentsForCurrentLine(ShapeInsideInfo*& shapeInsideInfo, const LayoutSize& logicalOffsetFromShapeContainer, LineLayoutState& layoutState)
 {
     if (layoutState.flowThread())
         return updateShapeAndSegmentsForCurrentLineInFlowThread(shapeInsideInfo, layoutState);
@@ -1686,11 +1686,12 @@ void RenderBlock::updateShapeAndSegmentsForCurrentLine(ShapeInsideInfo*& shapeIn
     if (!shapeInsideInfo)
         return;
 
-    LayoutUnit lineTop = logicalHeight() + absoluteLogicalTop;
+    LayoutUnit lineTop = logicalHeight() + logicalOffsetFromShapeContainer.height();
+    LayoutUnit lineLeft = logicalOffsetFromShapeContainer.width();
     LayoutUnit lineHeight = this->lineHeight(layoutState.lineInfo().isFirstLine(), isHorizontalWritingMode() ? HorizontalLine : VerticalLine, PositionOfInteriorLineBoxes);
 
     // FIXME: Bug 95361: It is possible for a line to grow beyond lineHeight, in which case these segments may be incorrect.
-    shapeInsideInfo->computeSegmentsForLine(lineTop, lineHeight);
+    shapeInsideInfo->computeSegmentsForLine(LayoutSize(lineLeft, lineTop), lineHeight);
 
     pushShapeContentOverflowBelowTheContentBox(this, shapeInsideInfo, lineTop, lineHeight);
 }
@@ -1761,7 +1762,9 @@ void RenderBlock::updateShapeAndSegmentsForCurrentLineInFlowThread(ShapeInsideIn
     }
 
     LayoutUnit lineTop = logicalLineTopInFlowThread - currentRegion->logicalTopForFlowThreadContent() + currentRegion->borderAndPaddingBefore();
-    shapeInsideInfo->computeSegmentsForLine(lineTop, lineHeight);
+
+    // FIXME: 118571 - Shape inside on a region does not yet take into account its padding for nested flow blocks
+    shapeInsideInfo->computeSegmentsForLine(LayoutSize(0, lineTop), lineHeight);
 
     if (currentRegion->isLastRegion())
         pushShapeContentOverflowBelowTheContentBox(this, shapeInsideInfo, lineTop, lineHeight);
@@ -1799,18 +1802,18 @@ void RenderBlock::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, Inlin
     LineBreaker lineBreaker(this);
 
 #if ENABLE(CSS_SHAPES)
-    LayoutUnit absoluteLogicalTop;
+    LayoutSize logicalOffsetFromShapeContainer;
     ShapeInsideInfo* shapeInsideInfo = layoutShapeInsideInfo();
     if (shapeInsideInfo) {
         ASSERT(shapeInsideInfo->owner() == this || allowsShapeInsideInfoSharing());
         if (shapeInsideInfo != this->shapeInsideInfo()) {
             // FIXME Bug 100284: If subsequent LayoutStates are pushed, we will have to add
             // their offsets from the original shape-inside container.
-            absoluteLogicalTop = logicalTop();
+            logicalOffsetFromShapeContainer = logicalOffsetFromShapeAncestorContainer(shapeInsideInfo->owner());
         }
         // Begin layout at the logical top of our shape inside.
-        if (logicalHeight() + absoluteLogicalTop < shapeInsideInfo->shapeLogicalTop()) {
-            LayoutUnit logicalHeight = shapeInsideInfo->shapeLogicalTop() - absoluteLogicalTop;
+        if (logicalHeight() + logicalOffsetFromShapeContainer.height() < shapeInsideInfo->shapeLogicalTop()) {
+            LayoutUnit logicalHeight = shapeInsideInfo->shapeLogicalTop() - logicalOffsetFromShapeContainer.height();
             if (layoutState.flowThread())
                 logicalHeight -= shapeInsideInfo->owner()->borderAndPaddingBefore();
             setLogicalHeight(logicalHeight);
@@ -1838,7 +1841,7 @@ void RenderBlock::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, Inlin
         FloatingObject* lastFloatFromPreviousLine = (containsFloats()) ? m_floatingObjects->set().last() : 0;
 
 #if ENABLE(CSS_SHAPES)
-        updateShapeAndSegmentsForCurrentLine(shapeInsideInfo, absoluteLogicalTop, layoutState);
+        updateShapeAndSegmentsForCurrentLine(shapeInsideInfo, logicalOffsetFromShapeContainer, layoutState);
 #endif
         WordMeasurements wordMeasurements;
         end = lineBreaker.nextLineBreak(resolver, layoutState.lineInfo(), renderTextInfo, lastFloatFromPreviousLine, consecutiveHyphenatedLines, wordMeasurements);
@@ -1854,7 +1857,7 @@ void RenderBlock::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, Inlin
         }
 
 #if ENABLE(CSS_SHAPES)
-        if (adjustLogicalLineTopAndLogicalHeightIfNeeded(shapeInsideInfo, absoluteLogicalTop, layoutState, resolver, lastFloatFromPreviousLine, end, wordMeasurements))
+        if (adjustLogicalLineTopAndLogicalHeightIfNeeded(shapeInsideInfo, logicalOffsetFromShapeContainer.height(), layoutState, resolver, lastFloatFromPreviousLine, end, wordMeasurements))
             continue;
 #endif
         ASSERT(end != resolver.position());
@@ -2060,7 +2063,7 @@ void RenderBlock::linkToEndLineIfNeeded(LineLayoutState& layoutState)
         if (layoutState.checkForFloatsFromLastLine()) {
             LayoutUnit bottomVisualOverflow = lastRootBox()->logicalBottomVisualOverflow();
             LayoutUnit bottomLayoutOverflow = lastRootBox()->logicalBottomLayoutOverflow();
-            TrailingFloatsRootInlineBox* trailingFloatsLineBox = new (renderArena()) TrailingFloatsRootInlineBox(this);
+            TrailingFloatsRootInlineBox* trailingFloatsLineBox = new (renderArena()) TrailingFloatsRootInlineBox(*this);
             m_lineBoxes.appendLineBox(trailingFloatsLineBox);
             trailingFloatsLineBox->setConstructed();
             GlyphOverflowAndFallbackFontsMap textBoxDataMap;
@@ -2600,9 +2603,9 @@ void RenderBlock::LineBreaker::skipLeadingWhitespace(InlineBidiResolver& resolve
             m_block->setLogicalHeight(oldLogicalHeight + marginOffset);
             m_block->positionNewFloatOnLine(m_block->insertFloatingObject(toRenderBox(object)), lastFloatFromPreviousLine, lineInfo, width);
             m_block->setLogicalHeight(oldLogicalHeight);
-        } else if (object->isText() && object->style()->hasTextCombine() && object->isCombineText() && !toRenderCombineText(object)->isCombined()) {
-            toRenderCombineText(object)->combineText();
-            if (toRenderCombineText(object)->isCombined())
+        } else if (object->isText() && object->style()->hasTextCombine() && object->isCombineText() && !toRenderCombineText(*object).isCombined()) {
+            toRenderCombineText(*object).combineText();
+            if (toRenderCombineText(*object).isCombined())
                 continue;
         }
         resolver.increment();
@@ -2858,9 +2861,9 @@ InlineIterator RenderBlock::LineBreaker::nextLineBreak(InlineBidiResolver& resol
 #endif
 }
 
-static inline bool iteratorIsBeyondEndOfRenderCombineText(const InlineIterator& iter, RenderCombineText* renderer)
+static inline bool iteratorIsBeyondEndOfRenderCombineText(const InlineIterator& iter, RenderCombineText& renderer)
 {
-    return iter.m_obj == renderer && iter.m_pos >= renderer->textLength();
+    return iter.m_obj == &renderer && iter.m_pos >= renderer.textLength();
 }
 
 static inline void commitLineBreakAtCurrentWidth(LineWidth& width, InlineIterator& lBreak, RenderObject* object, unsigned offset = 0, int nextBreak = -1)
@@ -3114,7 +3117,7 @@ InlineIterator RenderBlock::LineBreaker::nextSegmentBreak(InlineBidiResolver& re
                     currentCharacterIsWS = true;
                     ignoringSpaces = true;
                 }
-                if (toRenderListMarker(current.m_obj)->isInside())
+                if (toRenderListMarker(*current.m_obj).isInside())
                     width.addUncommittedWidth(replacedLogicalWidth);
             } else
                 width.addUncommittedWidth(replacedLogicalWidth);
@@ -3137,9 +3140,9 @@ InlineIterator RenderBlock::LineBreaker::nextSegmentBreak(InlineBidiResolver& re
             if (autoWrap && !RenderStyle::autoWrap(lastWS) && ignoringSpaces)
                 commitLineBreakAtCurrentWidth(width, lBreak, current.m_obj);
 
-            if (t->style()->hasTextCombine() && current.m_obj->isCombineText() && !toRenderCombineText(current.m_obj)->isCombined()) {
-                RenderCombineText* combineRenderer = toRenderCombineText(current.m_obj);
-                combineRenderer->combineText();
+            if (t->style()->hasTextCombine() && current.m_obj->isCombineText() && !toRenderCombineText(*current.m_obj).isCombined()) {
+                RenderCombineText& combineRenderer = toRenderCombineText(*current.m_obj);
+                combineRenderer.combineText();
                 // The length of the renderer's text may have changed. Increment stale iterator positions
                 if (iteratorIsBeyondEndOfRenderCombineText(lBreak, combineRenderer)) {
                     ASSERT(iteratorIsBeyondEndOfRenderCombineText(resolver.position(), combineRenderer));
@@ -3476,7 +3479,7 @@ InlineIterator RenderBlock::LineBreaker::nextSegmentBreak(InlineBidiResolver& re
 
         if (!current.m_obj->isFloatingOrOutOfFlowPositioned()) {
             last = current.m_obj;
-            if (last->isReplaced() && autoWrap && (!last->isImage() || allowImagesToBreak) && (!last->isListMarker() || toRenderListMarker(last)->isInside()))
+            if (last->isReplaced() && autoWrap && (!last->isImage() || allowImagesToBreak) && (!last->isListMarker() || toRenderListMarker(*last).isInside()))
                 commitLineBreakAtCurrentWidth(width, lBreak, next);
         }
 
@@ -3550,8 +3553,14 @@ void RenderBlock::addOverflowFromInlineChildren()
         endPadding = 1;
     for (RootInlineBox* curr = firstRootBox(); curr; curr = curr->nextRootBox()) {
         addLayoutOverflow(curr->paddedLayoutOverflowRect(endPadding));
-        if (!hasOverflowClip())
+        RenderRegion* region = curr->containingRegion();
+        if (region)
+            region->addLayoutOverflowForBox(this, curr->paddedLayoutOverflowRect(endPadding));
+        if (!hasOverflowClip()) {
             addVisualOverflow(curr->visualOverflowRect(curr->lineTop(), curr->lineBottom()));
+            if (region)
+                region->addVisualOverflowForBox(this, curr->visualOverflowRect(curr->lineTop(), curr->lineBottom()));
+        }
     }
 }
 
@@ -3706,7 +3715,7 @@ void RenderBlock::layoutLineGridBox()
     
     setLineGridBox(0);
 
-    RootInlineBox* lineGridBox = new (renderArena()) RootInlineBox(this);
+    RootInlineBox* lineGridBox = new (renderArena()) RootInlineBox(*this);
     lineGridBox->setHasTextChildren(); // Needed to make the line ascent/descent actually be honored in quirks mode.
     lineGridBox->setConstructed();
     GlyphOverflowAndFallbackFontsMap textBoxDataMap;

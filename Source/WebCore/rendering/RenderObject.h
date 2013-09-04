@@ -211,6 +211,7 @@ public:
     RenderBox* enclosingBox() const;
     RenderBoxModelObject* enclosingBoxModelObject() const;
 
+    bool fixedPositionedWithNamedFlowContainingBlock() const;
     // Function to return our enclosing flow thread if we are contained inside one. This
     // function follows the containing block chain.
     RenderFlowThread* flowThreadContainingBlock() const
@@ -323,9 +324,6 @@ public:
     virtual bool isBlockFlow() const { return false; }
     virtual bool isBoxModelObject() const { return false; }
     virtual bool isCounter() const { return false; }
-#if ENABLE(DIALOG_ELEMENT)
-    virtual bool isDialog() const { return false; }
-#endif
     virtual bool isQuote() const { return false; }
 
 #if ENABLE(DETAILS_ELEMENT)
@@ -359,6 +357,7 @@ public:
     virtual bool isRenderInline() const { return false; }
     virtual bool isRenderPart() const { return false; }
     virtual bool isRenderRegion() const { return false; }
+    virtual bool isRenderReplaced() const { return false; }
     virtual bool isRenderView() const { return false; }
     virtual bool isReplica() const { return false; }
 
@@ -638,7 +637,7 @@ public:
     // pseudo elements for which their parent node is returned.
     Node* generatingNode() const { return isPseudoElement() ? generatingPseudoHostElement() : node(); }
 
-    Document& document() const { return *m_node->document(); }
+    Document& document() const { return m_node->document(); }
     Frame& frame() const; // Defined in RenderView.h
 
     bool hasOutlineAnnotation() const;

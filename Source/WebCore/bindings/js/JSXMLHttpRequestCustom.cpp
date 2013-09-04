@@ -50,6 +50,7 @@
 #include <runtime/Error.h>
 #include <runtime/JSArrayBuffer.h>
 #include <runtime/JSArrayBufferView.h>
+#include <runtime/JSONObject.h>
 
 using namespace JSC;
 
@@ -75,6 +76,9 @@ void JSXMLHttpRequest::visitChildren(JSCell* cell, SlotVisitor& visitor)
     if (Blob* responseBlob = thisObject->m_impl->optionalResponseBlob())
         visitor.addOpaqueRoot(responseBlob);
 
+    if (thisObject->m_response)
+        visitor.append(&thisObject->m_response);
+
     thisObject->m_impl->visitJSEventListeners(visitor);
 }
 
@@ -82,7 +86,7 @@ void JSXMLHttpRequest::visitChildren(JSCell* cell, SlotVisitor& visitor)
 JSValue JSXMLHttpRequest::open(ExecState* exec)
 {
     if (exec->argumentCount() < 2)
-        return throwError(exec, createNotEnoughArgumentsError(exec));
+        return exec->vm().throwException(exec, createNotEnoughArgumentsError(exec));
 
     const KURL& url = impl()->scriptExecutionContext()->completeURL(exec->argument(1).toString(exec)->value(exec));
     String method = exec->argument(0).toString(exec)->value(exec);
@@ -107,6 +111,32 @@ JSValue JSXMLHttpRequest::open(ExecState* exec)
     setDOMException(exec, ec);
     return jsUndefined();
 }
+
+class SendFunctor {
+public:
+    SendFunctor()
+        : m_hasSkippedFirstFrame(false)
+        , m_hasViableFrame(false)
+    {
+    }
+
+    bool hasViableFrame() const { return m_hasViableFrame; }
+
+    StackIterator::Status operator()(StackIterator&)
+    {
+        if (!m_hasSkippedFirstFrame) {
+            m_hasSkippedFirstFrame = true;
+            return StackIterator::Continue;
+        }
+
+        m_hasViableFrame = true;
+        return StackIterator::Done;
+    }
+
+private:
+    bool m_hasSkippedFirstFrame;
+    bool m_hasViableFrame;
+};
 
 JSValue JSXMLHttpRequest::send(ExecState* exec)
 {
@@ -134,9 +164,10 @@ JSValue JSXMLHttpRequest::send(ExecState* exec)
             impl()->send(val.toString(exec)->value(exec), ec);
     }
 
+    SendFunctor functor;
     StackIterator iter = exec->begin();
-    ++iter;
-    if (iter != exec->end()) {
+    iter.iterate(functor);
+    if (functor.hasViableFrame()) {
         unsigned line = 0;
         unsigned unusuedColumn = 0;
         iter->computeLineAndColumn(line, unusuedColumn);
@@ -168,6 +199,26 @@ JSValue JSXMLHttpRequest::response(ExecState* exec) const
     case XMLHttpRequest::ResponseTypeText:
         return responseText(exec);
 
+    case XMLHttpRequest::ResponseTypeJSON:
+        {
+            // FIXME: Use CachedAttribute for other types as well.
+            if (m_response && impl()->responseCacheIsValid())
+                return m_response.get();
+
+            if (!impl()->doneWithoutErrors())
+                return jsNull();
+
+            JSValue value = JSONParse(exec, impl()->responseTextIgnoringResponseType());
+            if (!value)
+                value = jsNull();
+            JSXMLHttpRequest* jsRequest = const_cast<JSXMLHttpRequest*>(this);
+            jsRequest->m_response.set(exec->vm(), jsRequest, value);
+
+            impl()->didCacheResponseJSON();
+
+            return value;
+        }
+
     case XMLHttpRequest::ResponseTypeDocument:
         {
             ExceptionCode ec = 0;
@@ -180,26 +231,10 @@ JSValue JSXMLHttpRequest::response(ExecState* exec) const
         }
 
     case XMLHttpRequest::ResponseTypeBlob:
-        {
-            ExceptionCode ec = 0;
-            Blob* blob = impl()->responseBlob(ec);
-            if (ec) {
-                setDOMException(exec, ec);
-                return jsUndefined();
-            }
-            return toJS(exec, globalObject(), blob);
-        }
+        return toJS(exec, globalObject(), impl()->responseBlob());
 
     case XMLHttpRequest::ResponseTypeArrayBuffer:
-        {
-            ExceptionCode ec = 0;
-            ArrayBuffer* arrayBuffer = impl()->responseArrayBuffer(ec);
-            if (ec) {
-                setDOMException(exec, ec);
-                return jsUndefined();
-            }
-            return toJS(exec, globalObject(), arrayBuffer);
-        }
+        return toJS(exec, globalObject(), impl()->responseArrayBuffer());
     }
 
     return jsUndefined();

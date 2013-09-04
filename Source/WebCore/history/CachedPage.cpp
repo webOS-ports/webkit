@@ -51,7 +51,7 @@ PassRefPtr<CachedPage> CachedPage::create(Page* page)
 }
 
 CachedPage::CachedPage(Page* page)
-    : m_timeStamp(currentTime())
+    : m_timeStamp(monotonicallyIncreasingTime())
     , m_expirationTime(m_timeStamp + page->settings().backForwardCacheExpirationInterval())
     , m_cachedMainFrame(CachedFrame::create(&page->mainFrame()))
     , m_needStyleRecalcForVisitedLinks(false)
@@ -77,14 +77,14 @@ CachedPage::~CachedPage()
 void CachedPage::restore(Page* page)
 {
     ASSERT(m_cachedMainFrame);
-    ASSERT(page && &page->mainFrame() == &m_cachedMainFrame->view()->frame());
+    ASSERT(page && page->frameIsMainFrame(&m_cachedMainFrame->view()->frame()));
     ASSERT(!page->subframeCount());
 
     m_cachedMainFrame->open();
     
     // Restore the focus appearance for the focused element.
     // FIXME: Right now we don't support pages w/ frames in the b/f cache.  This may need to be tweaked when we add support for that.
-    Document* focusedDocument = page->focusController().focusedOrMainFrame()->document();
+    Document* focusedDocument = page->focusController().focusedOrMainFrame().document();
     if (Element* element = focusedDocument->focusedElement())
         element->updateFocusAppearance(true);
 
@@ -129,7 +129,7 @@ void CachedPage::destroy()
 
 bool CachedPage::hasExpired() const
 {
-    return currentTime() > m_expirationTime;
+    return monotonicallyIncreasingTime() > m_expirationTime;
 }
 
 } // namespace WebCore

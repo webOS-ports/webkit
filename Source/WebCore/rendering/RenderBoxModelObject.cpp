@@ -37,6 +37,7 @@
 #include "RenderLayer.h"
 #include "RenderNamedFlowThread.h"
 #include "RenderRegion.h"
+#include "RenderTable.h"
 #include "RenderView.h"
 #include "ScrollingConstraints.h"
 #include "Settings.h"
@@ -490,7 +491,7 @@ LayoutPoint RenderBoxModelObject::adjustedPositionRelativeToOffsetParent(const L
     // return the distance between the canvas origin and the left border edge 
     // of the element and stop this algorithm.
     if (const RenderBoxModelObject* offsetParent = this->offsetParent()) {
-        if (offsetParent->isBox() && !offsetParent->isBody())
+        if (offsetParent->isBox() && !offsetParent->isBody() && !offsetParent->isTable())
             referencePoint.move(-toRenderBox(offsetParent)->borderLeft(), -toRenderBox(offsetParent)->borderTop());
         if (!isOutOfFlowPositioned() || flowThreadContainingBlock()) {
             if (isRelPositioned())
@@ -530,10 +531,10 @@ void RenderBoxModelObject::computeStickyPositionConstraints(StickyPositionViewpo
 
     RenderBlock* containingBlock = this->containingBlock();
     RenderLayer* enclosingClippingLayer = layer()->enclosingOverflowClipLayer(ExcludeSelf);
-    RenderBox* enclosingClippingBox = enclosingClippingLayer ? toRenderBox(&enclosingClippingLayer->renderer()) : &view();
+    RenderBox& enclosingClippingBox = enclosingClippingLayer ? toRenderBox(enclosingClippingLayer->renderer()) : view();
 
     LayoutRect containerContentRect;
-    if (!enclosingClippingLayer || (containingBlock != enclosingClippingBox))
+    if (!enclosingClippingLayer || (containingBlock != &enclosingClippingBox))
         containerContentRect = containingBlock->contentBoxRect();
     else {
         containerContentRect = containingBlock->layoutOverflowRect();
@@ -555,12 +556,12 @@ void RenderBoxModelObject::computeStickyPositionConstraints(StickyPositionViewpo
     containerContentRect.contract(minMargin);
 
     // Finally compute container rect relative to the scrolling ancestor.
-    FloatRect containerRectRelativeToScrollingAncestor = containingBlock->localToContainerQuad(FloatRect(containerContentRect), enclosingClippingBox).boundingBox();
+    FloatRect containerRectRelativeToScrollingAncestor = containingBlock->localToContainerQuad(FloatRect(containerContentRect), &enclosingClippingBox).boundingBox();
     if (enclosingClippingLayer) {
         FloatPoint containerLocationRelativeToScrollingAncestor = containerRectRelativeToScrollingAncestor.location() -
-            FloatSize(enclosingClippingBox->borderLeft() + enclosingClippingBox->paddingLeft(),
-            enclosingClippingBox->borderTop() + enclosingClippingBox->paddingTop());
-        if (enclosingClippingBox != containingBlock)
+            FloatSize(enclosingClippingBox.borderLeft() + enclosingClippingBox.paddingLeft(),
+            enclosingClippingBox.borderTop() + enclosingClippingBox.paddingTop());
+        if (&enclosingClippingBox != containingBlock)
             containerLocationRelativeToScrollingAncestor += enclosingClippingLayer->scrollOffset();
         containerRectRelativeToScrollingAncestor.setLocation(containerLocationRelativeToScrollingAncestor);
     }
@@ -574,11 +575,11 @@ void RenderBoxModelObject::computeStickyPositionConstraints(StickyPositionViewpo
 
     // FIXME: sucks to call localToContainerQuad again, but we can't just offset from the previously computed rect if there are transforms.
     // Map to the view to avoid including page scale factor.
-    FloatPoint stickyLocationRelativeToScrollingAncestor = flippedStickyBoxRect.location() + containingBlock->localToContainerQuad(FloatRect(FloatPoint(), containingBlock->size()), enclosingClippingBox).boundingBox().location();
+    FloatPoint stickyLocationRelativeToScrollingAncestor = flippedStickyBoxRect.location() + containingBlock->localToContainerQuad(FloatRect(FloatPoint(), containingBlock->size()), &enclosingClippingBox).boundingBox().location();
     if (enclosingClippingLayer) {
-        stickyLocationRelativeToScrollingAncestor -= FloatSize(enclosingClippingBox->borderLeft() + enclosingClippingBox->paddingLeft(),
-            enclosingClippingBox->borderTop() + enclosingClippingBox->paddingTop());
-        if (enclosingClippingBox != containingBlock)
+        stickyLocationRelativeToScrollingAncestor -= FloatSize(enclosingClippingBox.borderLeft() + enclosingClippingBox.paddingLeft(),
+            enclosingClippingBox.borderTop() + enclosingClippingBox.paddingTop());
+        if (&enclosingClippingBox != containingBlock)
             stickyLocationRelativeToScrollingAncestor += enclosingClippingLayer->scrollOffset();
     }
     // FIXME: For now, assume that |this| is not transformed.
@@ -613,9 +614,9 @@ LayoutSize RenderBoxModelObject::stickyPositionOffset() const
     ASSERT(hasLayer());
     RenderLayer* enclosingClippingLayer = layer()->enclosingOverflowClipLayer(ExcludeSelf);
     if (enclosingClippingLayer) {
-        RenderBox* enclosingClippingBox = toRenderBox(&enclosingClippingLayer->renderer());
-        LayoutRect clipRect = enclosingClippingBox->overflowClipRect(LayoutPoint(), 0); // FIXME: make this work in regions.
-        constrainingRect = enclosingClippingBox->localToContainerQuad(FloatRect(clipRect), &view()).boundingBox();
+        RenderBox& enclosingClippingBox = toRenderBox(enclosingClippingLayer->renderer());
+        LayoutRect clipRect = enclosingClippingBox.overflowClipRect(LayoutPoint(), 0); // FIXME: make this work in regions.
+        constrainingRect = enclosingClippingBox.localToContainerQuad(FloatRect(clipRect), &view()).boundingBox();
 
         FloatPoint scrollOffset = FloatPoint() + enclosingClippingLayer->scrollOffset();
         constrainingRect.setLocation(scrollOffset);
@@ -786,7 +787,7 @@ void RenderBoxModelObject::paintFillLayerExtended(const PaintInfo& paintInfo, co
     if (document().printing()) {
         if (style()->printColorAdjust() == PrintColorAdjustEconomy)
             forceBackgroundToWhite = true;
-        if (document().settings() && document().settings()->shouldPrintBackgrounds())
+        if (frame().settings().shouldPrintBackgrounds())
             forceBackgroundToWhite = false;
     }
 
@@ -993,6 +994,8 @@ void RenderBoxModelObject::paintFillLayerExtended(const PaintInfo& paintInfo, co
             RenderObject* clientForBackgroundImage = backgroundObject ? backgroundObject : this;
             RefPtr<Image> image = bgImage->image(clientForBackgroundImage, geometry.tileSize());
             bool useLowQualityScaling = shouldPaintAtLowQuality(context, image.get(), bgLayer, geometry.tileSize());
+            if (image.get())
+                image->setSpaceSize(geometry.spaceSize());
             context->drawTiledImage(image.get(), style()->colorSpace(), geometry.destRect(), geometry.relativePhase(), geometry.tileSize(), 
                 compositeOp, useLowQualityScaling, bgLayer->blendMode());
         }
@@ -1224,6 +1227,17 @@ bool RenderBoxModelObject::fixedBackgroundPaintsInLocalCoordinates() const
 #endif
 }
 
+static inline int getSpace(int areaSize, int tileSize)
+{
+    int numberOfTiles = areaSize / tileSize;
+    int space = 0;
+
+    if (numberOfTiles > 1)
+        space = roundedLayoutUnit((float)(areaSize - numberOfTiles * tileSize) / (numberOfTiles - 1));
+
+    return space;
+}
+
 void RenderBoxModelObject::calculateBackgroundImageGeometry(const RenderLayerModelObject* paintContainer, const FillLayer* fillLayer, const LayoutRect& paintRect,
     BackgroundImageGeometry& geometry, RenderObject* backgroundObject) const
 {
@@ -1313,6 +1327,7 @@ void RenderBoxModelObject::calculateBackgroundImageGeometry(const RenderLayerMod
         fillTileSize.setWidth(positioningAreaSize.width() / nrTiles);
         geometry.setTileSize(fillTileSize);
         geometry.setPhaseX(geometry.tileSize().width() ? geometry.tileSize().width() - roundToInt(computedXPosition + left) % geometry.tileSize().width() : 0);
+        geometry.setSpaceSize(FloatSize());
     }
 
     LayoutUnit computedYPosition = minimumValueForLength(fillLayer->yPosition(), availableHeight, &view(), true);
@@ -1325,20 +1340,37 @@ void RenderBoxModelObject::calculateBackgroundImageGeometry(const RenderLayerMod
         fillTileSize.setHeight(positioningAreaSize.height() / nrTiles);
         geometry.setTileSize(fillTileSize);
         geometry.setPhaseY(geometry.tileSize().height() ? geometry.tileSize().height() - roundToInt(computedYPosition + top) % geometry.tileSize().height() : 0);
+        geometry.setSpaceSize(FloatSize());
     }
 
-    if (backgroundRepeatX == RepeatFill)
+    if (backgroundRepeatX == RepeatFill) {
         geometry.setPhaseX(geometry.tileSize().width() ? geometry.tileSize().width() - roundToInt(computedXPosition + left) % geometry.tileSize().width() : 0);
-    else if (backgroundRepeatX == NoRepeatFill) {
+        geometry.setSpaceSize(FloatSize(0, geometry.spaceSize().height()));
+    } else if (backgroundRepeatX == SpaceFill && fillTileSize.width() > 0) {
+        int space = getSpace(positioningAreaSize.width(), geometry.tileSize().width());
+        int actualWidth = geometry.tileSize().width() + space;
+
+        geometry.setSpaceSize(FloatSize(space, 0));
+        geometry.setPhaseX(actualWidth ? actualWidth - roundToInt(computedXPosition + left) % actualWidth : 0);
+    } else if (backgroundRepeatX == NoRepeatFill) {
         int xOffset = fillLayer->backgroundXOrigin() == RightEdge ? availableWidth - computedXPosition : computedXPosition;
         geometry.setNoRepeatX(left + xOffset);
+        geometry.setSpaceSize(FloatSize(0, geometry.spaceSize().height()));
     }
 
-    if (backgroundRepeatY == RepeatFill)
+    if (backgroundRepeatY == RepeatFill) {
         geometry.setPhaseY(geometry.tileSize().height() ? geometry.tileSize().height() - roundToInt(computedYPosition + top) % geometry.tileSize().height() : 0);
-    else if (backgroundRepeatY == NoRepeatFill) {
+        geometry.setSpaceSize(FloatSize(geometry.spaceSize().width(), 0));
+    } else if (backgroundRepeatY == SpaceFill && fillTileSize.height() > 0) {
+        int space = getSpace(positioningAreaSize.height(), geometry.tileSize().height());
+        int actualHeight = geometry.tileSize().height() + space;
+
+        geometry.setSpaceSize(FloatSize(geometry.spaceSize().width(), space));
+        geometry.setPhaseY(actualHeight ? actualHeight - roundToInt(computedYPosition + top) % actualHeight : 0);
+    } else if (backgroundRepeatY == NoRepeatFill) {
         int yOffset = fillLayer->backgroundYOrigin() == BottomEdge ? availableHeight - computedYPosition : computedYPosition;
         geometry.setNoRepeatY(top + yOffset);
+        geometry.setSpaceSize(FloatSize(geometry.spaceSize().width(), 0));
     }
 
     if (fixedAttachment)

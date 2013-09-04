@@ -429,7 +429,6 @@ set(WebCore_IDL_FILES
     html/HTMLCollection.idl
     html/HTMLDataListElement.idl
     html/HTMLDetailsElement.idl
-    html/HTMLDialogElement.idl
     html/HTMLDirectoryElement.idl
     html/HTMLDivElement.idl
     html/HTMLDListElement.idl
@@ -980,6 +979,7 @@ set(WebCore_SOURCES
     accessibility/AccessibilityRenderObject.cpp
     accessibility/AccessibilityScrollbar.cpp
     accessibility/AccessibilityScrollView.cpp
+    accessibility/AccessibilitySearchFieldButtons.cpp
     accessibility/AccessibilitySpinButton.cpp
     accessibility/AccessibilitySlider.cpp
     accessibility/AccessibilitySVGRoot.cpp
@@ -1197,7 +1197,6 @@ set(WebCore_SOURCES
     dom/NodeFilter.cpp
     dom/NodeIterator.cpp
     dom/NodeRareData.cpp
-    dom/NodeRenderingContext.cpp
     dom/NodeRenderingTraversal.cpp
     dom/NodeTraversal.cpp
     dom/Notation.cpp
@@ -1372,7 +1371,6 @@ set(WebCore_SOURCES
     html/HTMLDListElement.cpp
     html/HTMLDataListElement.cpp
     html/HTMLDetailsElement.cpp
-    html/HTMLDialogElement.cpp
     html/HTMLDirectoryElement.cpp
     html/HTMLDivElement.cpp
     html/HTMLDocument.cpp
@@ -2119,7 +2117,6 @@ set(WebCore_SOURCES
     rendering/RenderCounter.cpp
     rendering/RenderDeprecatedFlexibleBox.cpp
     rendering/RenderDetailsMarker.cpp
-    rendering/RenderDialog.cpp
     rendering/RenderEmbeddedObject.cpp
     rendering/RenderFieldset.cpp
     rendering/RenderFileUploadControl.cpp
@@ -2216,7 +2213,6 @@ set(WebCore_SOURCES
     rendering/shapes/Shape.cpp
     rendering/shapes/ShapeInfo.cpp
     rendering/shapes/ShapeInsideInfo.cpp
-    rendering/shapes/ShapeInterval.cpp
     rendering/shapes/ShapeOutsideInfo.cpp
 
     rendering/style/BasicShapes.cpp
@@ -2714,7 +2710,9 @@ if (ENABLE_VIDEO_TRACK)
     list(APPEND WebCore_SOURCES
         html/track/AudioTrack.cpp
         html/track/AudioTrackList.cpp
+        html/track/InbandGenericTextTrack.cpp
         html/track/InbandTextTrack.cpp
+        html/track/InbandWebVTTTextTrack.cpp
         html/track/LoadableTextTrack.cpp
         html/track/TextTrack.cpp
         html/track/TextTrackCue.cpp

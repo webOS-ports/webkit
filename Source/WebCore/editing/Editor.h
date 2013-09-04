@@ -41,18 +41,15 @@
 #include "VisibleSelection.h"
 #include "WritingDirection.h"
 
-#if PLATFORM(MAC) && !defined(__OBJC__)
-class NSDictionary;
-typedef int NSWritingDirection;
+#if PLATFORM(MAC)
+OBJC_CLASS NSDictionary;
 #endif
 
 namespace WebCore {
 
 class Clipboard;
 class CompositeEditCommand;
-#if ENABLE(DELETION_UI)
 class DeleteButtonController;
-#endif
 class EditCommand;
 class EditCommandComposition;
 class EditorClient;
@@ -129,10 +126,12 @@ public:
     void cut();
     void copy();
     void paste();
+    void paste(Pasteboard&);
     void pasteAsPlainText();
     void performDelete();
 
-    void copyURL(const KURL&, const String&);
+    void copyURL(const KURL&, const String& title);
+    void copyURL(const KURL&, const String& title, Pasteboard&);
     void copyImage(const HitTestResult&);
 
     void indent();
@@ -249,6 +248,7 @@ public:
     void lowercaseWord();
     void capitalizeWord();
 #endif
+
 #if USE(AUTOMATIC_TEXT_REPLACEMENT)
     void showSubstitutionsPanel();
     bool substitutionsPanelIsShowing();
@@ -285,7 +285,7 @@ public:
     void didEndEditing();
     void willWriteSelectionToPasteboard(PassRefPtr<Range>);
     void didWriteSelectionToPasteboard();
-    
+
     void showFontPanel();
     void showStylesPanel();
     void showColorPanel();
@@ -390,11 +390,13 @@ public:
     NSDictionary* fontAttributesForSelectionStart() const;
     bool canCopyExcludingStandaloneImages();
     void takeFindStringFromSelection();
-    void writeSelectionToPasteboard(const String& pasteboardName, const Vector<String>& pasteboardTypes);
+    void writeSelectionToPasteboard(Pasteboard&);
     void readSelectionFromPasteboard(const String& pasteboardName);
     String stringSelectionForPasteboard();
     String stringSelectionForPasteboardWithImageAltText();
     PassRefPtr<SharedBuffer> dataSelectionForPasteboard(const String& pasteboardName);
+    void writeURLToPasteboard(Pasteboard&, const KURL&, const String& title);
+    void writeImageToPasteboard(Pasteboard&, Element& imageElement, const KURL&, const String& title);
 #endif
 
     void replaceSelectionWithFragment(PassRefPtr<DocumentFragment>, bool selectReplacement, bool smartReplace, bool matchStyle);
@@ -411,8 +413,16 @@ public:
     void setDefaultParagraphSeparator(EditorParagraphSeparator separator) { m_defaultParagraphSeparator = separator; }
     Vector<String> dictationAlternativesForMarker(const DocumentMarker*);
     void applyDictationAlternativelternative(const String& alternativeString);
+
 private:
     explicit Editor(Frame&);
+
+    Document& document() const;
+
+#if PLATFORM(MAC)
+    PassRefPtr<SharedBuffer> selectionInWebArchiveFormat();
+    PassRefPtr<Range> adjustedSelectionRange();
+#endif
 
     Frame& m_frame;
 #if ENABLE(DELETION_UI)

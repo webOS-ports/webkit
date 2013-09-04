@@ -1,3 +1,274 @@
+2013-09-03  Antoine Quint  <graouts@apple.com>
+
+        Web Inspector: exceptions triggered from console evaluation do not pause the debugger
+        https://bugs.webkit.org/show_bug.cgi?id=120460
+
+        We used to preclude any debugging from errors stemming from code evaluated in the console
+        as we would always set the doNotPauseOnExceptionsAndMuteConsole parameter to "false" when
+        calling JavaScriptLogViewController._evaluateInInspectedWindow(). However, it is desirable
+        to allow debugging code ran from the console.
+
+        We now allow debugging in such a scenario and we filter out call frames coming from the
+        Web Inspector injected script as well as the call frame for the console prompt such that
+        we only pause in the debugger in case the exception is in code under the console prompt
+        and not the console code prompt itself.
+
+        Additionally, to prevent stepping out to call frames we may have filtered out, we disable
+        the "step out" button in cases where there are no further frames in the frontend to go out to.
+
+        Reviewed by Timothy Hatcher.
+
+        * UserInterface/DebuggerManager.js:
+        (WebInspector.DebuggerManager.prototype.debuggerDidPause):
+        Filter out call frames that have a URL coming from Web Inspector injected script by looking
+        for a URL starting with the "__WebInspector" prefix. If we determine that there are no call
+        frames left after filtering, we resume code evaluation such that we only pause in the debugger
+        when the exception is in code evluated under the console prompt.
+
+        * UserInterface/DebuggerSidebarPanel.js:
+        (WebInspector.DebuggerSidebarPanel):
+        (WebInspector.DebuggerSidebarPanel.prototype._debuggerDidPause):
+        (WebInspector.DebuggerSidebarPanel.prototype._debuggerActiveCallFrameDidChange):
+        Monitor any change to the active call frame such that we may tie the state of the
+        "step out" button to the availability of a call frame to step out to in the filtered
+        list set on the DebuggerManager.
+
+        * UserInterface/JavaScriptLogViewController.js:
+        (WebInspector.JavaScriptLogViewController.prototype.consolePromptTextCommitted):
+        Set the doNotPauseOnExceptionsAndMuteConsole to "false" when calling _evaluateInInspectedWindow()
+        in order to allow pausing on exceptions coming from code evalued in the console. Also, explicitly
+        set a sourceURL for the script to evaluate such that we may identify its origin when filtering
+        call frames stemming from inspector code.
+
+        * UserInterface/ResourceSidebarPanel.js:
+        (WebInspector.ResourceSidebarPanel.prototype._scriptWasAdded):
+        Filter out any script resource starting with the Web Inspector-specific "__WebInspector" prefix
+        so that injected script does not show up.
+
+2013-08-30  Brent Fulgham  <bfulgham@apple.com>
+
+        [Windows] Correct windows build. Get rid of unnecessary pre-build step. We don't build anything
+        in this project, just copy some files into the WebKit resource folder. This was fooling the
+        build system into thinking something failed, resulting in a build error.
+
+        * WebInspectorUI.vcxproj/WebInspectorUI.vcxproj: Remove reference to WebInspectorUIPreBuild.cmd
+        * WebInspectorUI.vcxproj/WebInspectorUI.vcxproj.filters:
+        * WebInspectorUI.vcxproj/WebInspectorUIPreBuild.cmd: Removed.
+
+2013-08-30  Brent Fulgham  <bfulgham@apple.com>
+
+        [Windows] Build correction after dependency change.
+
+        * WebInspectorUI.vcxproj/WebInspectorUI.vcxproj: Remove circular dependency on
+        WebKit, and control this at the solution level. The prior change broke external
+        builders.
+
+2013-08-30  Brent Fulgham  <bfulgham@apple.com>
+
+        [Windows] Unreviewed build gardening.
+
+        * WebInspectorUI.vcxproj/WebInspectorUI.vcxproj: Adjust build dependencies so
+        that WebInspectorUI 'builds' after WebKit so that the expected resource directory
+        structure is always in place.
+
+2013-08-30  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Breakpoints should have Automatically Continue Option
+        https://bugs.webkit.org/show_bug.cgi?id=120187
+
+        Reviewed by Timothy Hatcher.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        * UserInterface/Breakpoint.css:
+        (#edit-breakpoint-popoover-auto-continue):
+        Misc. changes for UI.
+
+        * UserInterface/Breakpoint.js:
+        (WebInspector.Breakpoint):
+        (WebInspector.Breakpoint.prototype.get autoContinue):
+        (WebInspector.Breakpoint.prototype.set autoContinue):
+        (WebInspector.Breakpoint.prototype.get options):
+        (WebInspector.Breakpoint.prototype.get info):
+        General maintenance of the autoContinue state.
+
+        (WebInspector.Breakpoint.prototype._popoverToggleEnabledCheckboxChanged):
+        (WebInspector.Breakpoint.prototype._popoverToggleAutoContinueCheckboxChanged):
+        (WebInspector.Breakpoint.prototype._editBreakpointPopoverContentElement):
+        Edit Breakpoint UI for setting autoContinue state.
+
+        * UserInterface/InspectorBackend.js:
+        (InspectorBackendClass.prototype.registerCommand):
+        (InspectorBackendClass.prototype._supports):
+        Extension to check if a BackendCommands method supports a particular param.
+
+        * UserInterface/DebuggerManager.js:
+        (WebInspector.DebuggerManager):
+        (WebInspector.DebuggerManager.prototype._setBreakpoint):
+        * UserInterface/InspectorBackendCommands.js:
+        Change to backend agent calls for the new protocol API.
+
+2013-08-29  Timothy Hatcher  <timothy@apple.com>
+
+        Make incrementing and decrementing numbers by 0.1 require the control key, and not near zero numbers.
+
+        https://bugs.webkit.org/show_bug.cgi?id=120492
+        <rdar://problem/13738935> Incrementing and decrementing numbers near zero is annoying compared to earlier releases
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/CodeMirrorAdditions.js:
+        (alterNumber): Remove near zero check.
+
+2013-08-29  Timothy Hatcher  <timothy@apple.com>
+
+        Only modify numbers if they are identified by CodeMirror as a number.
+
+        https://bugs.webkit.org/show_bug.cgi?id=120484
+
+        <rdar://problem/13877085> REGRESSION: Alt-up and Alt-down don't work when cursor is in unit
+        <rdar://problem/13058697> PARITY: Option-Up arrow in "translate3d" should not modify number to make" translate4d"
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/CodeMirrorAdditions.js:
+        (CodeMirror.prototype.alterNumberInRange): Correctly preserve the selection, even if it differs from
+        the range passed in.
+        (alterNumber): Find number tokens and pass those to alterNumberInRange.
+        (alterNumber.findNumberToken): Added. Helper.
+
+2013-08-29  Timothy Hatcher  <timothy@apple.com>
+
+        Make incrementing and decrementing numbers by 0.1 require the control key, and not near zero numbers.
+
+        https://bugs.webkit.org/show_bug.cgi?id=120492
+        <rdar://problem/13738935> Incrementing and decrementing numbers near zero is annoying compared to earlier releases
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/CodeMirrorAdditions.js:
+        (alterNumber): Remove near zero check.
+
+2013-08-29  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Download Web Archive of Inspected Page
+        https://bugs.webkit.org/show_bug.cgi?id=119774
+
+        Reviewed by Timothy Hatcher.
+
+        * UserInterface/ContentBrowser.js:
+        (WebInspector.ContentBrowser.prototype._saveDataToFile):
+        Allow a custom save handler which will do all the work.
+
+        * UserInterface/DOMTreeContentView.js:
+        (WebInspector.DOMTreeContentView):
+        (WebInspector.DOMTreeContentView.prototype.get supportsSave):
+        (WebInspector.DOMTreeContentView.prototype.get saveData.saveHandler):
+        (WebInspector.DOMTreeContentView.prototype.get saveData):
+        Allow Save keyboard shortcut to download an archive viewing the DOM Tree.
+
+        * UserInterface/ResourceTreeElement.js:
+        (WebInspector.ResourceTreeElement.prototype._updateStatus):
+        * UserInterface/FrameTreeElement.js:
+        (WebInspector.FrameTreeElement):
+        (WebInspector.FrameTreeElement.prototype.updateStatusForMainFrame):
+        (WebInspector.FrameTreeElement.prototype._mainResourceDidChange):
+        (WebInspector.FrameTreeElement.prototype._shouldGroupIntoFolders):
+        (WebInspector.FrameTreeElement.prototype._reloadPageClicked):
+        (WebInspector.FrameTreeElement.prototype._downloadButtonClicked):
+        (WebInspector.FrameTreeElement.prototype._updateDownloadButton):
+        (WebInspector.FrameTreeElement.prototype._pageArchiveStarted):
+        (WebInspector.FrameTreeElement.prototype._pageArchiveEnded):
+        Move handling of main frame TreeElement buttons to FrameTreeElement.
+        Add a Download button, and enable/disable it appropriately.
+
+        * UserInterface/ResourceTreeElement.css:
+        * UserInterface/TreeElementStatusButton.css: Copied from Source/WebInspectorUI/UserInterface/ResourceTreeElement.css.
+        (.item > .status > .status-button):
+        (.item > .status > .status-button > svg *):
+        (.item.selected > .status > .status-button > svg *):
+        (.item.selected > .status > .status-button:active > svg *):
+        (.item > .status > .status-button.disabled > svg *):
+        (.item.selected > .status > .status-button.disabled > svg *):
+        * UserInterface/TreeElementStatusButton.js: Added.
+        (WebInspector.TreeElementStatusButton):
+        (WebInspector.TreeElementStatusButton.prototype.get element):
+        (WebInspector.TreeElementStatusButton.prototype.get hidden):
+        (WebInspector.TreeElementStatusButton.prototype.set hidden):
+        (WebInspector.TreeElementStatusButton.prototype.get enabled):
+        (WebInspector.TreeElementStatusButton.prototype.set enabled):
+        (WebInspector.TreeElementStatusButton.prototype._clicked):
+        Make buttons in the TreeElement status a generic class to share styling
+        and handling of the buttons. New "disabled" state with even more
+        transparent is used when the page is downloading.
+
+        * UserInterface/Main.html:
+        * UserInterface/Main.js:
+        (WebInspector.archiveMainFrame):
+        (WebInspector.canArchiveMainFrame):
+        Generic API for archiving the page and determining if you can archive it.
+
+        * UserInterface/InspectorBackendCommands.js:
+        * UserInterface/InspectorFrontendHostStub.js:
+        (.WebInspector.InspectorFrontendHostStub.prototype.save):
+        * UserInterface/Images/DownloadArrow.svg: Added.
+        * Localizations/en.lproj/localizedStrings.js:
+        Misc. updates and new files.
+
+2013-08-28  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Give reload icon an :active state and allow CSS to style some SVG images
+        https://bugs.webkit.org/show_bug.cgi?id=120384
+
+        Reviewed by Timothy Hatcher.
+
+        The Reload icon is duplicated just to provide different fill colors.
+        Convert from using <img> to an <svg> document for this image, and style
+        it with CSS. This also makes it trivial to add an :active state.
+
+        * UserInterface/ImageUtilities.js:
+        (.invokeCallbackWithDocument):
+        (.imageLoad):
+        (.imageError):
+        (wrappedSVGDocument):
+        Helpers for downloading and in memory caching SVG images.
+
+        * UserInterface/Images/Reload.svg:
+        * UserInterface/Images/ReloadSelected.svg: Removed.
+        Updated Reload image better matches the original design (slightly
+        larger). And the duplicate image can be removed.
+
+        * UserInterface/ResourceTreeElement.css:
+        (.item.resource > .status > .reload-button):
+        (.item.resource > .status > .reload-button > svg *):
+        (.item.resource.selected > .status > .reload-button > svg *):
+        (.item.resource.selected > .status > .reload-button:active > svg *):
+        Different styles, including a new :active style.
+
+        * UserInterface/ResourceTreeElement.js:
+        (WebInspector.ResourceTreeElement.prototype._updateStatusWithMainFrameButtons):
+        (WebInspector.ResourceTreeElement.prototype._updateStatus):
+        Handle updating the main frame's state asynchronously since loading the SVG
+        image document is asynchronous.
+
+2013-08-27  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Debugger should have Continue to Here Context Menu
+        https://bugs.webkit.org/show_bug.cgi?id=120189
+
+        Reviewed by Timothy Hatcher.
+
+        When paused in the debugger and presenting a Context Menu in the
+        gutter, include a "Continue to Here" option. This requires a
+        script/line/column location combination.
+
+        * UserInterface/DebuggerManager.js:
+        (WebInspector.DebuggerManager.prototype.continueToLocation):
+        * UserInterface/Resource.js:
+        (WebInspector.Resource.prototype.scriptForLocation):
+        * UserInterface/SourceCodeTextEditor.js:
+        (WebInspector.SourceCodeTextEditor.prototype.continueToLocation):
+        (WebInspector.SourceCodeTextEditor.prototype.textEditorGutterContextMenu):
+
 2013-08-26  Joseph Pecoraro  <pecoraro@apple.com>
 
         Web Inspector: We should regenerate InspectorBackendCommands.js for Legacy Inspector.json versions

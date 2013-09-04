@@ -270,8 +270,8 @@ WebView *getWebView(WebFrame *webFrame)
 
     coreFrame->tree().setName(name);
     if (ownerElement) {
-        ASSERT(ownerElement->document()->frame());
-        ownerElement->document()->frame()->tree().appendChild(coreFrame.get());
+        ASSERT(ownerElement->document().frame());
+        ownerElement->document().frame()->tree().appendChild(coreFrame.get());
     }
 
     coreFrame->init();
@@ -298,7 +298,7 @@ WebView *getWebView(WebFrame *webFrame)
 
 + (PassRefPtr<WebCore::Frame>)_createSubframeWithOwnerElement:(HTMLFrameOwnerElement*)ownerElement frameName:(const String&)name frameView:(WebFrameView *)frameView
 {
-    return [self _createFrameWithPage:ownerElement->document()->frame()->page() frameName:name frameView:frameView ownerElement:ownerElement];
+    return [self _createFrameWithPage:ownerElement->document().frame()->page() frameName:name frameView:frameView ownerElement:ownerElement];
 }
 
 - (BOOL)_isIncludedInWebKitStatistics
@@ -695,7 +695,7 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     if (startContainer == nil || endContainer == nil)
         return nil;
 
-    ASSERT(startContainer->document() == endContainer->document());
+    ASSERT(&startContainer->document() == &endContainer->document());
     
     _private->coreFrame->document()->updateLayoutIgnorePendingStylesheets();
 
@@ -803,7 +803,7 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 {
     Frame* frame = _private->coreFrame;
     String mimeType = frame->document()->loader()->writer()->mimeType();
-    PluginData* pluginData = frame->page() ? frame->page()->pluginData() : 0;
+    PluginData* pluginData = frame->page() ? &frame->page()->pluginData() : 0;
 
     if (WebCore::DOMImplementation::isTextMIMEType(mimeType)
         || Image::supportsType(mimeType)
@@ -1194,7 +1194,7 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     if (!_private->coreFrame->view()->documentView())
         return [NSArray array];
 
-    RenderView* root = toRenderView(_private->coreFrame->document()->renderer());
+    RenderView* root = _private->coreFrame->document()->renderView();
     if (!root)
         return [NSArray array];
 

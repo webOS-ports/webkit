@@ -32,7 +32,7 @@
 
 #include "Chrome.h"
 #include "DocumentLoader.h"
-#include "ElementTraversal.h"
+#include "ElementIterator.h"
 #include "FrameView.h"
 #include "ImageBuffer.h"
 #include "ImageObserver.h"
@@ -74,7 +74,8 @@ bool SVGImage::hasSingleSecurityOrigin() const
         return true;
 
     // Don't allow foreignObject elements since they can leak information with arbitrary HTML (like spellcheck or control theme).
-    if (Traversal<SVGForeignObjectElement>::firstWithin(rootElement))
+    auto foreignObjectDescendants = descendantsOfType<SVGForeignObjectElement>(rootElement);
+    if (foreignObjectDescendants.begin() != foreignObjectDescendants.end())
         return false;
 
     // Because SVG image rendering disallows external resources and links,
@@ -200,6 +201,7 @@ void SVGImage::drawPatternForContainer(GraphicsContext* context, const FloatSize
         return;
     drawForContainer(buffer->context(), containerSize, zoom, imageBufferSize, zoomedContainerRect, ColorSpaceDeviceRGB, CompositeSourceOver, BlendModeNormal);
     RefPtr<Image> image = buffer->copyImage(DontCopyBackingStore, Unscaled);
+    image->setSpaceSize(spaceSize());
 
     // Adjust the source rect and transform due to the image buffer's scaling.
     FloatRect scaledSrcRect = srcRect;
@@ -385,7 +387,7 @@ bool isInSVGImage(const Element* element)
 {
     ASSERT(element);
 
-    Page* page = element->document()->page();
+    Page* page = element->document().page();
     if (!page)
         return false;
 

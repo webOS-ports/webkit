@@ -25,7 +25,7 @@
 #include "config.h"
 #include "HTMLFieldSetElement.h"
 
-#include "ElementTraversal.h"
+#include "ElementIterator.h"
 #include "HTMLCollection.h"
 #include "HTMLLegendElement.h"
 #include "HTMLNames.h"
@@ -51,7 +51,8 @@ PassRefPtr<HTMLFieldSetElement> HTMLFieldSetElement::create(const QualifiedName&
 
 void HTMLFieldSetElement::invalidateDisabledStateUnder(Element* base)
 {
-    for (HTMLFormControlElement* control = Traversal<HTMLFormControlElement>::firstWithin(base); control; control = Traversal<HTMLFormControlElement>::next(control, base))
+    auto formControlDescendants = descendantsOfType<HTMLFormControlElement>(base);
+    for (auto control = formControlDescendants.begin(), end = formControlDescendants.end(); control != end; ++control)
         control->ancestorDisabledStateWasChanged();
 }
 
@@ -62,11 +63,13 @@ void HTMLFieldSetElement::disabledAttributeChanged()
     invalidateDisabledStateUnder(this);
 }
 
-void HTMLFieldSetElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
+void HTMLFieldSetElement::childrenChanged(const ChildChange& change)
 {
-    HTMLFormControlElement::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
-    for (HTMLLegendElement* legend = Traversal<HTMLLegendElement>::firstChild(this); legend; legend = Traversal<HTMLLegendElement>::nextSibling(legend))
-        invalidateDisabledStateUnder(legend);
+    HTMLFormControlElement::childrenChanged(change);
+
+    auto legendChildren = childrenOfType<HTMLLegendElement>(this);
+    for (auto legend = legendChildren.begin(), end = legendChildren.end(); legend != end; ++legend)
+        invalidateDisabledStateUnder(&*legend);
 }
 
 bool HTMLFieldSetElement::supportsFocus() const
@@ -85,9 +88,13 @@ RenderObject* HTMLFieldSetElement::createRenderer(RenderArena* arena, RenderStyl
     return new (arena) RenderFieldset(this);
 }
 
-HTMLLegendElement* HTMLFieldSetElement::legend() const
+const HTMLLegendElement* HTMLFieldSetElement::legend() const
 {
-    return Traversal<HTMLLegendElement>::firstWithin(this);
+    auto legendDescendants = descendantsOfType<HTMLLegendElement>(this);
+    auto firstLegend = legendDescendants.begin();
+    if (firstLegend != legendDescendants.end())
+        return &*firstLegend;
+    return nullptr;
 }
 
 PassRefPtr<HTMLCollection> HTMLFieldSetElement::elements()
@@ -97,7 +104,7 @@ PassRefPtr<HTMLCollection> HTMLFieldSetElement::elements()
 
 void HTMLFieldSetElement::refreshElementsIfNeeded() const
 {
-    uint64_t docVersion = document()->domTreeVersion();
+    uint64_t docVersion = document().domTreeVersion();
     if (m_documentVersion == docVersion)
         return;
 

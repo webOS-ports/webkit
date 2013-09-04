@@ -208,7 +208,7 @@ public:
     
     bool hasRenderNamedFlowThreads() const;
     bool checkTwoPassLayoutForAutoHeightRegions() const;
-    FlowThreadController* flowThreadController();
+    FlowThreadController& flowThreadController();
 
     void styleDidChange(StyleDifference, const RenderStyle* oldStyle);
 
@@ -348,25 +348,19 @@ private:
     bool m_selectionWasCaret;
 };
 
-inline RenderView* toRenderView(RenderObject* object)
+inline RenderView& toRenderView(RenderObject& object)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(!object || object->isRenderView());
-    return static_cast<RenderView*>(object);
+    ASSERT_WITH_SECURITY_IMPLICATION(object.isRenderView());
+    return static_cast<RenderView&>(object);
 }
 
-inline const RenderView* toRenderView(const RenderObject* object)
+inline const RenderView& toRenderView(const RenderObject& object)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(!object || object->isRenderView());
-    return static_cast<const RenderView*>(object);
+    ASSERT_WITH_SECURITY_IMPLICATION(object.isRenderView());
+    return static_cast<const RenderView&>(object);
 }
 
-// This will catch anyone doing an unnecessary cast.
-void toRenderView(const RenderView*);
-
-ALWAYS_INLINE RenderView* Document::renderView() const
-{
-    return toRenderView(renderer());
-}
+void toRenderView(const RenderView&);
 
 // Stack-based class to assist with LayoutState push/pop
 class LayoutStateMaintainer {

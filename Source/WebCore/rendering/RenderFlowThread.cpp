@@ -42,6 +42,7 @@
 #include "RenderLayer.h"
 #include "RenderLayerCompositor.h"
 #include "RenderRegion.h"
+#include "RenderTheme.h"
 #include "RenderView.h"
 #include "TransformState.h"
 #include "WebKitNamedFlow.h"
@@ -137,14 +138,14 @@ public:
         : m_view(view)
         , m_renderFlowThread(0)
     {
-        m_renderFlowThread = m_view->flowThreadController()->currentRenderFlowThread();
+        m_renderFlowThread = m_view->flowThreadController().currentRenderFlowThread();
         if (m_renderFlowThread)
-            view->flowThreadController()->setCurrentRenderFlowThread(0);
+            view->flowThreadController().setCurrentRenderFlowThread(0);
     }
     ~CurrentRenderFlowThreadDisabler()
     {
         if (m_renderFlowThread)
-            m_view->flowThreadController()->setCurrentRenderFlowThread(m_renderFlowThread);
+            m_view->flowThreadController().setCurrentRenderFlowThread(m_renderFlowThread);
     }
 private:
     RenderView* m_view;
@@ -342,10 +343,8 @@ void RenderFlowThread::updateLogicalWidth()
     for (RenderRegionList::iterator iter = m_regionList.begin(); iter != m_regionList.end(); ++iter) {
         RenderRegion* region = *iter;
         LayoutUnit regionLogicalWidth = region->pageLogicalWidth();
-        if (regionLogicalWidth != logicalWidth) {
-            LayoutUnit logicalLeft = style()->direction() == LTR ? LayoutUnit() : logicalWidth - regionLogicalWidth;
-            region->setRenderBoxRegionInfo(this, logicalLeft, regionLogicalWidth, false);
-        }
+        LayoutUnit logicalLeft = style()->direction() == LTR ? LayoutUnit() : logicalWidth - regionLogicalWidth;
+        region->setRenderBoxRegionInfo(this, logicalLeft, regionLogicalWidth, false);
     }
 }
 
@@ -557,22 +556,22 @@ LayoutPoint RenderFlowThread::adjustedPositionRelativeToOffsetParent(const Rende
         if (wasComputedRelativeToOtherRegion) {
             if (boxModelObject.isBox()) {
                 // Use borderBoxRectInRegion to account for variations such as percentage margins.
-                LayoutRect borderBoxRect = toRenderBox(&boxModelObject)->borderBoxRectInRegion(startRegion, RenderBox::DoNotCacheRenderBoxRegionInfo);
+                LayoutRect borderBoxRect = toRenderBox(boxModelObject).borderBoxRectInRegion(startRegion, RenderBox::DoNotCacheRenderBoxRegionInfo);
                 referencePoint.move(borderBoxRect.location().x(), 0);
             }
             
             // Get the logical top coordinate of the current object.
             LayoutUnit top = 0;
             if (boxModelObject.isRenderBlock())
-                top = toRenderBlock(&boxModelObject)->offsetFromLogicalTopOfFirstPage();
+                top = toRenderBlock(boxModelObject).offsetFromLogicalTopOfFirstPage();
             else {
                 if (boxModelObject.containingBlock())
                     top = boxModelObject.containingBlock()->offsetFromLogicalTopOfFirstPage();
                 
                 if (boxModelObject.isBox())
-                    top += toRenderBox(&boxModelObject)->topLeftLocation().y();
+                    top += toRenderBox(boxModelObject).topLeftLocation().y();
                 else if (boxModelObject.isRenderInline())
-                    top -= toRenderInline(&boxModelObject)->borderTop();
+                    top -= toRenderInline(boxModelObject).borderTop();
             }
             
             // Get the logical top of the region this object starts in
@@ -977,13 +976,13 @@ void RenderFlowThread::markAutoLogicalHeightRegionsForLayout()
 
 void RenderFlowThread::markRegionsForOverflowLayoutIfNeeded()
 {
-    if (!hasRegions() || !hasRenderOverflow())
+    if (!hasRegions())
         return;
 
-    // FIXME: We will eventually create a faster type of layout that only computes overflow.
-    // FIXME: For now propagate overflow only for the first and last regions.
-    firstRegion()->setNeedsSimplifiedNormalFlowLayout();
-    lastRegion()->setNeedsSimplifiedNormalFlowLayout();
+    for (RenderRegionList::iterator iter = m_regionList.begin(); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+        region->setNeedsSimplifiedNormalFlowLayout();
+    }
 }
 
 void RenderFlowThread::updateRegionsFlowThreadPortionRect(const RenderRegion* lastRegionWithContent)
@@ -1098,7 +1097,7 @@ bool RenderFlowThread::addForcedRegionBreak(const RenderBlock* block, LayoutUnit
 void RenderFlowThread::incrementAutoLogicalHeightRegions()
 {
     if (!m_autoLogicalHeightRegionsCount)
-        view().flowThreadController()->incrementFlowThreadsWithAutoLogicalHeightRegions();
+        view().flowThreadController().incrementFlowThreadsWithAutoLogicalHeightRegions();
     ++m_autoLogicalHeightRegionsCount;
 }
 
@@ -1107,7 +1106,7 @@ void RenderFlowThread::decrementAutoLogicalHeightRegions()
     ASSERT(m_autoLogicalHeightRegionsCount > 0);
     --m_autoLogicalHeightRegionsCount;
     if (!m_autoLogicalHeightRegionsCount)
-        view().flowThreadController()->decrementFlowThreadsWithAutoLogicalHeightRegions();
+        view().flowThreadController().decrementFlowThreadsWithAutoLogicalHeightRegions();
 }
 
 void RenderFlowThread::collectLayerFragments(LayerFragments& layerFragments, const LayoutRect& layerBoundingBox, const LayoutRect& dirtyRect)
@@ -1258,25 +1257,186 @@ void RenderFlowThread::mapLocalToContainer(const RenderLayerModelObject* repaint
         static_cast<const RenderObject*>(region)->mapLocalToContainer(region->containerForRepaint(), transformState, mode, wasFixed);
 }
 
+// FIXME: Make this function faster. Walking the render tree is slow, better use a caching mechanism (e.g. |cachedOffsetFromLogicalTopOfFirstRegion|).
+LayoutRect RenderFlowThread::mapFromLocalToFlowThread(const RenderBox* box, const LayoutRect& localRect) const
+{
+    LayoutRect boxRect = localRect;
+
+    while (box && box != this) {
+        RenderBlock* containerBlock = box->containingBlock();
+        ASSERT(containerBlock);
+        if (!containerBlock)
+            return LayoutRect();
+        LayoutPoint currentBoxLocation = box->location();
+
+        if (containerBlock->style()->writingMode() != box->style()->writingMode()) {
+            if (containerBlock->style()->isFlippedBlocksWritingMode()) {
+                if (containerBlock->isHorizontalWritingMode())
+                    boxRect.setY(box->height() - boxRect.maxY());
+                else
+                    boxRect.setX(box->width() - boxRect.maxX());
+            }
+            box->flipForWritingMode(boxRect);
+        }
+        boxRect.moveBy(currentBoxLocation);
+        box = containerBlock;
+    }
+
+    return boxRect;
+}
+
+// FIXME: Make this function faster. Walking the render tree is slow, better use a caching mechanism (e.g. |cachedOffsetFromLogicalTopOfFirstRegion|).
+LayoutRect RenderFlowThread::mapFromFlowThreadToLocal(const RenderBox* box, const LayoutRect& rect) const
+{
+    LayoutRect localRect = rect;
+    if (box == this)
+        return localRect;
+
+    RenderBlock* containerBlock = box->containingBlock();
+    ASSERT(containerBlock);
+    if (!containerBlock)
+        return LayoutRect();
+    localRect = mapFromFlowThreadToLocal(containerBlock, localRect);
+
+    LayoutPoint currentBoxLocation = box->location();
+    localRect.moveBy(-currentBoxLocation);
+
+    if (containerBlock->style()->writingMode() != box->style()->writingMode()) {
+        if (containerBlock->style()->isFlippedBlocksWritingMode()) {
+            if (containerBlock->isHorizontalWritingMode())
+                localRect.setY(box->height() - localRect.maxY());
+            else
+                localRect.setX(box->width() - localRect.maxX());
+        }
+        box->flipForWritingMode(localRect);
+    }
+
+    return localRect;
+}
+
+void RenderFlowThread::addRegionsVisualEffectOverflow(const RenderBox* box)
+{
+    RenderRegion* startRegion = 0;
+    RenderRegion* endRegion = 0;
+    getRegionRangeForBox(box, startRegion, endRegion);
+
+    for (RenderRegionList::iterator iter = m_regionList.find(startRegion); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+
+        LayoutRect borderBox = box->borderBoxRectInRegion(region);
+        borderBox = box->applyVisualEffectOverflow(borderBox);
+        borderBox = region->rectFlowPortionForBox(box, borderBox);
+
+        region->addVisualOverflowForBox(box, borderBox);
+        if (region == endRegion)
+            break;
+    }
+}
+
+void RenderFlowThread::addRegionsVisualOverflowFromTheme(const RenderBlock* block)
+{
+    RenderRegion* startRegion = 0;
+    RenderRegion* endRegion = 0;
+    getRegionRangeForBox(block, startRegion, endRegion);
+
+    for (RenderRegionList::iterator iter = m_regionList.find(startRegion); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+
+        LayoutRect borderBox = block->borderBoxRectInRegion(region);
+        borderBox = region->rectFlowPortionForBox(block, borderBox);
+
+        IntRect inflatedRect = pixelSnappedIntRect(borderBox);
+        block->theme()->adjustRepaintRect(block, inflatedRect);
+
+        region->addVisualOverflowForBox(block, inflatedRect);
+        if (region == endRegion)
+            break;
+    }
+}
+
+void RenderFlowThread::addRegionsOverflowFromChild(const RenderBox* box, const RenderBox* child, const LayoutSize& delta)
+{
+    RenderRegion* startRegion = 0;
+    RenderRegion* endRegion = 0;
+    getRegionRangeForBox(child, startRegion, endRegion);
+
+    RenderRegion* containerStartRegion = 0;
+    RenderRegion* containerEndRegion = 0;
+    getRegionRangeForBox(box, containerStartRegion, containerEndRegion);
+
+    for (RenderRegionList::iterator iter = m_regionList.find(startRegion); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+        if (!regionInRange(region, containerStartRegion, containerEndRegion))
+            continue;
+
+        LayoutRect childLayoutOverflowRect = region->layoutOverflowRectForBoxForPropagation(child);
+        childLayoutOverflowRect.move(delta);
+        region->addLayoutOverflowForBox(box, childLayoutOverflowRect);
+
+        if (child->hasSelfPaintingLayer() || box->hasOverflowClip())
+            continue;
+        LayoutRect childVisualOverflowRect = region->visualOverflowRectForBoxForPropagation(child);
+        childVisualOverflowRect.move(delta);
+        region->addVisualOverflowForBox(box, childVisualOverflowRect);
+
+        if (region == endRegion)
+            break;
+    }
+}
+
+void RenderFlowThread::addRegionsLayoutOverflow(const RenderBox* box, const LayoutRect& layoutOverflow)
+{
+    RenderRegion* startRegion = 0;
+    RenderRegion* endRegion = 0;
+    getRegionRangeForBox(box, startRegion, endRegion);
+
+    for (RenderRegionList::iterator iter = m_regionList.find(startRegion); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+        LayoutRect layoutOverflowInRegion = region->rectFlowPortionForBox(box, layoutOverflow);
+
+        region->addLayoutOverflowForBox(box, layoutOverflowInRegion);
+
+        if (region == endRegion)
+            break;
+    }
+}
+
+void RenderFlowThread::clearRegionsOverflow(const RenderBox* box)
+{
+    RenderRegion* startRegion = 0;
+    RenderRegion* endRegion = 0;
+    getRegionRangeForBox(box, startRegion, endRegion);
+
+    for (RenderRegionList::iterator iter = m_regionList.find(startRegion); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+        RenderBoxRegionInfo* boxInfo = region->renderBoxRegionInfo(box);
+        if (boxInfo && boxInfo->overflow())
+            boxInfo->clearOverflow();
+
+        if (region == endRegion)
+            break;
+    }
+}
+
 CurrentRenderFlowThreadMaintainer::CurrentRenderFlowThreadMaintainer(RenderFlowThread* renderFlowThread)
     : m_renderFlowThread(renderFlowThread)
     , m_previousRenderFlowThread(0)
 {
     if (!m_renderFlowThread)
         return;
-    FlowThreadController* controller = m_renderFlowThread->view().flowThreadController();
-    m_previousRenderFlowThread = controller->currentRenderFlowThread();
+    FlowThreadController& controller = m_renderFlowThread->view().flowThreadController();
+    m_previousRenderFlowThread = controller.currentRenderFlowThread();
     ASSERT(!m_previousRenderFlowThread || !renderFlowThread->isRenderNamedFlowThread());
-    controller->setCurrentRenderFlowThread(m_renderFlowThread);
+    controller.setCurrentRenderFlowThread(m_renderFlowThread);
 }
 
 CurrentRenderFlowThreadMaintainer::~CurrentRenderFlowThreadMaintainer()
 {
     if (!m_renderFlowThread)
         return;
-    FlowThreadController* controller = m_renderFlowThread->view().flowThreadController();
-    ASSERT(controller->currentRenderFlowThread() == m_renderFlowThread);
-    controller->setCurrentRenderFlowThread(m_previousRenderFlowThread);
+    FlowThreadController& controller = m_renderFlowThread->view().flowThreadController();
+    ASSERT(controller.currentRenderFlowThread() == m_renderFlowThread);
+    controller.setCurrentRenderFlowThread(m_previousRenderFlowThread);
 }
 
 

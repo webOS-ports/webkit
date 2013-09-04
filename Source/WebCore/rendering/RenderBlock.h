@@ -544,6 +544,7 @@ protected:
 
     virtual void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const OVERRIDE;
     virtual void computePreferredLogicalWidths() OVERRIDE;
+    void adjustIntrinsicLogicalWidthsForColumns(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const;
 
     virtual int firstLineBoxBaseline() const;
     virtual int inlineBlockBaseline(LineDirectionMode) const OVERRIDE;
@@ -617,6 +618,8 @@ private:
 #if ENABLE(CSS_SHAPES)
     void computeShapeSize();
     void updateShapeInsideInfoAfterStyleChange(const ShapeValue*, const ShapeValue* oldShape);
+    void relayoutShapeDescendantIfMoved(RenderBlock* child, LayoutSize offset);
+    LayoutSize logicalOffsetFromShapeAncestorContainer(const RenderBlock* container) const;
 #endif
     virtual RenderObjectChildList* virtualChildren() { return children(); }
     virtual const RenderObjectChildList* virtualChildren() const { return children(); }
@@ -736,12 +739,12 @@ private:
         bool isPlaced() const { return m_isPlaced; }
         void setIsPlaced(bool placed = true) { m_isPlaced = placed; }
 
-        inline LayoutUnit x() const { ASSERT(isPlaced()); return m_frameRect.x(); }
-        inline LayoutUnit maxX() const { ASSERT(isPlaced()); return m_frameRect.maxX(); }
-        inline LayoutUnit y() const { ASSERT(isPlaced()); return m_frameRect.y(); }
-        inline LayoutUnit maxY() const { ASSERT(isPlaced()); return m_frameRect.maxY(); }
-        inline LayoutUnit width() const { return m_frameRect.width(); }
-        inline LayoutUnit height() const { return m_frameRect.height(); }
+        LayoutUnit x() const { ASSERT(isPlaced()); return m_frameRect.x(); }
+        LayoutUnit maxX() const { ASSERT(isPlaced()); return m_frameRect.maxX(); }
+        LayoutUnit y() const { ASSERT(isPlaced()); return m_frameRect.y(); }
+        LayoutUnit maxY() const { ASSERT(isPlaced()); return m_frameRect.maxY(); }
+        LayoutUnit width() const { return m_frameRect.width(); }
+        LayoutUnit height() const { return m_frameRect.height(); }
 
         void setX(LayoutUnit x) { ASSERT(!isInPlacedTree()); m_frameRect.setX(x); }
         void setY(LayoutUnit y) { ASSERT(!isInPlacedTree()); m_frameRect.setY(y); }
@@ -1117,7 +1120,7 @@ private:
     void layoutRunsAndFloats(LineLayoutState&, bool hasInlineChild);
     void layoutRunsAndFloatsInRange(LineLayoutState&, InlineBidiResolver&, const InlineIterator& cleanLineStart, const BidiStatus& cleanLineBidiStatus, unsigned consecutiveHyphenatedLines);
 #if ENABLE(CSS_SHAPES)
-    void updateShapeAndSegmentsForCurrentLine(ShapeInsideInfo*&, LayoutUnit&, LineLayoutState&);
+    void updateShapeAndSegmentsForCurrentLine(ShapeInsideInfo*&, const LayoutSize&, LineLayoutState&);
     void updateShapeAndSegmentsForCurrentLineInFlowThread(ShapeInsideInfo*&, LineLayoutState&);
     bool adjustLogicalLineTopAndLogicalHeightIfNeeded(ShapeInsideInfo*, LayoutUnit, LineLayoutState&, InlineBidiResolver&, FloatingObject*, InlineIterator&, WordMeasurements&);
 #endif
@@ -1204,21 +1207,21 @@ protected:
     typedef PODFreeListArena<PODRedBlackTree<FloatingObjectInterval>::Node> IntervalArena;
     
     template <FloatingObject::Type FloatTypeValue>
-    class FloatIntervalSearchAdapter {
+    class ComputeFloatOffsetAdapter {
     public:
         typedef FloatingObjectInterval IntervalType;
         
-        FloatIntervalSearchAdapter(const RenderBlock* renderer, int lowValue, int highValue, LayoutUnit& offset)
+        ComputeFloatOffsetAdapter(const RenderBlock* renderer, int lineTop, int lineBottom, LayoutUnit& offset)
             : m_renderer(renderer)
-            , m_lowValue(lowValue)
-            , m_highValue(highValue)
+            , m_lineTop(lineTop)
+            , m_lineBottom(lineBottom)
             , m_offset(offset)
             , m_outermostFloat(0)
         {
         }
         
-        inline int lowValue() const { return m_lowValue; }
-        inline int highValue() const { return m_highValue; }
+        int lowValue() const { return m_lineTop; }
+        int highValue() const { return m_lineBottom; }
         void collectIfNeeded(const IntervalType&);
 
 #if ENABLE(CSS_SHAPES)
@@ -1235,8 +1238,8 @@ protected:
         bool updateOffsetIfNeeded(const FloatingObject*);
 
         const RenderBlock* m_renderer;
-        int m_lowValue;
-        int m_highValue;
+        int m_lineTop;
+        int m_lineBottom;
         LayoutUnit& m_offset;
         const FloatingObject* m_outermostFloat;
     };
@@ -1358,6 +1361,18 @@ private:
     static bool s_canPropagateFloatIntoSibling;
 };
 
+inline RenderBlock& toRenderBlock(RenderObject& object)
+{
+    ASSERT_WITH_SECURITY_IMPLICATION(object.isRenderBlock());
+    return static_cast<RenderBlock&>(object);
+}
+
+inline const RenderBlock& toRenderBlock(const RenderObject& object)
+{
+    ASSERT_WITH_SECURITY_IMPLICATION(object.isRenderBlock());
+    return static_cast<const RenderBlock&>(object);
+}
+
 inline RenderBlock* toRenderBlock(RenderObject* object)
 { 
     ASSERT_WITH_SECURITY_IMPLICATION(!object || object->isRenderBlock());
@@ -1372,6 +1387,7 @@ inline const RenderBlock* toRenderBlock(const RenderObject* object)
 
 // This will catch anyone doing an unnecessary cast.
 void toRenderBlock(const RenderBlock*);
+void toRenderBlock(const RenderBlock&);
 
 #ifndef NDEBUG
 // These structures are used by PODIntervalTree for debugging purposes.

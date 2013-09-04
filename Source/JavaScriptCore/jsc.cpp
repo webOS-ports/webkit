@@ -326,14 +326,31 @@ EncodedJSValue JSC_HOST_CALL functionDescribe(ExecState* exec)
     return JSValue::encode(jsUndefined());
 }
 
+class FunctionJSCStackFunctor {
+public:
+    FunctionJSCStackFunctor(StringBuilder& trace)
+        : m_trace(trace)
+    {
+    }
+
+    StackIterator::Status operator()(StackIterator& iter)
+    {
+        m_trace.append(String::format("    %zu   %s\n", iter->index(), iter->toString().utf8().data()));
+        return StackIterator::Continue;
+    }
+
+private:
+    StringBuilder& m_trace;
+};
+
 EncodedJSValue JSC_HOST_CALL functionJSCStack(ExecState* exec)
 {
     StringBuilder trace;
     trace.appendLiteral("--> Stack trace:\n");
 
-    int i = 0;
-    for (StackIterator iter = exec->begin(); iter != exec->end(); ++iter, ++i)
-        trace.append(String::format("    %i   %s\n", i, iter->toString().utf8().data()));
+    FunctionJSCStackFunctor functor(trace);
+    StackIterator iter = exec->begin();
+    iter.iterate(functor);
     fprintf(stderr, "%s", trace.toString().utf8().data());
     return JSValue::encode(jsUndefined());
 }
@@ -366,7 +383,7 @@ EncodedJSValue JSC_HOST_CALL functionRun(ExecState* exec)
     String fileName = exec->argument(0).toString(exec)->value(exec);
     Vector<char> script;
     if (!fillBufferWithContentsOfFile(fileName, script))
-        return JSValue::encode(throwError(exec, createError(exec, "Could not open file.")));
+        return JSValue::encode(exec->vm().throwException(exec, createError(exec, "Could not open file.")));
 
     GlobalObject* globalObject = GlobalObject::create(exec->vm(), GlobalObject::createStructure(exec->vm(), jsNull()), Vector<String>());
 
@@ -377,7 +394,7 @@ EncodedJSValue JSC_HOST_CALL functionRun(ExecState* exec)
     stopWatch.stop();
 
     if (!!exception) {
-        throwError(globalObject->globalExec(), exception);
+        exec->vm().throwException(globalObject->globalExec(), exception);
         return JSValue::encode(jsUndefined());
     }
     
@@ -389,14 +406,14 @@ EncodedJSValue JSC_HOST_CALL functionLoad(ExecState* exec)
     String fileName = exec->argument(0).toString(exec)->value(exec);
     Vector<char> script;
     if (!fillBufferWithContentsOfFile(fileName, script))
-        return JSValue::encode(throwError(exec, createError(exec, "Could not open file.")));
+        return JSValue::encode(exec->vm().throwException(exec, createError(exec, "Could not open file.")));
 
     JSGlobalObject* globalObject = exec->lexicalGlobalObject();
     
     JSValue evaluationException;
     JSValue result = evaluate(globalObject->globalExec(), jscSource(script.data(), fileName), JSValue(), &evaluationException);
     if (evaluationException)
-        throwError(exec, evaluationException);
+        exec->vm().throwException(exec, evaluationException);
     return JSValue::encode(result);
 }
 
@@ -405,7 +422,7 @@ EncodedJSValue JSC_HOST_CALL functionCheckSyntax(ExecState* exec)
     String fileName = exec->argument(0).toString(exec)->value(exec);
     Vector<char> script;
     if (!fillBufferWithContentsOfFile(fileName, script))
-        return JSValue::encode(throwError(exec, createError(exec, "Could not open file.")));
+        return JSValue::encode(exec->vm().throwException(exec, createError(exec, "Could not open file.")));
 
     JSGlobalObject* globalObject = exec->lexicalGlobalObject();
 
@@ -417,7 +434,7 @@ EncodedJSValue JSC_HOST_CALL functionCheckSyntax(ExecState* exec)
     stopWatch.stop();
 
     if (!validSyntax)
-        throwError(exec, syntaxException);
+        exec->vm().throwException(exec, syntaxException);
     return JSValue::encode(jsNumber(stopWatch.getElapsedMS()));
 }
 
