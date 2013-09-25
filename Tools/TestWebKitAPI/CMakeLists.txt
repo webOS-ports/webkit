@@ -2,6 +2,7 @@ set(TESTWEBKITAPI_DIR "${TOOLS_DIR}/TestWebKitAPI")
 
 include_directories(${CMAKE_BINARY_DIR}
     ${TESTWEBKITAPI_DIR}
+    ${TESTWEBKITAPI_DIR}
     ${CMAKE_SOURCE_DIR}/Source
     ${DERIVED_SOURCES_WEBCORE_DIR}
     ${DERIVED_SOURCES_WEBKIT2_DIR}/include
@@ -111,8 +112,6 @@ add_executable(test_wtf
     ${TESTWEBKITAPI_DIR}/Tests/WTF/StringOperators.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/TemporaryChange.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Vector.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WTF/VectorBasic.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WTF/VectorReverse.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/WTFString.cpp
 )
 

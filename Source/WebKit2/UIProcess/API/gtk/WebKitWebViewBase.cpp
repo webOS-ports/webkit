@@ -40,7 +40,9 @@
 #include "WebKitPrivate.h"
 #include "WebKitWebViewBaseAccessible.h"
 #include "WebKitWebViewBasePrivate.h"
+#include "WebPageGroup.h"
 #include "WebPageProxy.h"
+#include "WebPreferences.h"
 #include "WebViewBaseInputMethodFilter.h"
 #include <WebCore/ClipboardUtilitiesGtk.h>
 #include <WebCore/DataObjectGtk.h>
@@ -296,13 +298,6 @@ void webkitWebViewBaseAddAuthenticationDialog(WebKitWebViewBase* webViewBase, Gt
     gtk_widget_queue_draw(GTK_WIDGET(webViewBase));
 }
 
-void webkitWebViewBaseCancelAuthenticationDialog(WebKitWebViewBase* webViewBase)
-{
-    WebKitWebViewBasePrivate* priv = webViewBase->priv;
-    if (priv->authenticationDialog)
-        gtk_widget_destroy(priv->authenticationDialog);
-}
-
 void webkitWebViewBaseAddWebInspector(WebKitWebViewBase* webViewBase, GtkWidget* inspector)
 {
     webViewBase->priv->inspectorView = inspector;
@@ -423,7 +418,7 @@ static gboolean webkitWebViewBaseDraw(GtkWidget* widget, cairo_t* cr)
 
 #if USE(TEXTURE_MAPPER_GL)
     if (webkitWebViewRenderAcceleratedCompositingResults(webViewBase, drawingArea, cr, &clipRect))
-        return FALSE;
+        return GTK_WIDGET_CLASS(webkit_web_view_base_parent_class)->draw(widget, cr);
 #endif
 
     WebCore::Region unpaintedRegion; // This is simply unused.
@@ -892,6 +887,18 @@ WebPageProxy* webkitWebViewBaseGetPage(WebKitWebViewBase* webkitWebViewBase)
     return webkitWebViewBase->priv->pageProxy.get();
 }
 
+void webkitWebViewBaseUpdatePreferences(WebKitWebViewBase* webkitWebViewBase)
+{
+    WebKitWebViewBasePrivate* priv = webkitWebViewBase->priv;
+
+#if USE(TEXTURE_MAPPER_GL)
+    if (priv->redirectedWindow)
+        return;
+#endif
+
+    priv->pageProxy->pageGroup()->preferences()->setAcceleratedCompositingEnabled(false);
+}
+
 void webkitWebViewBaseCreateWebPage(WebKitWebViewBase* webkitWebViewBase, WebContext* context, WebPageGroup* pageGroup)
 {
     WebKitWebViewBasePrivate* priv = webkitWebViewBase->priv;
@@ -907,6 +914,8 @@ void webkitWebViewBaseCreateWebPage(WebKitWebViewBase* webkitWebViewBase, WebCon
     if (priv->redirectedWindow)
         priv->pageProxy->setAcceleratedCompositingWindowId(priv->redirectedWindow->windowId());
 #endif
+
+    webkitWebViewBaseUpdatePreferences(webkitWebViewBase);
 
     // This must happen here instead of the instance initializer, because the input method
     // filter must have access to the page.

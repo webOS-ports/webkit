@@ -28,8 +28,8 @@
 
 #include "CSSCalculationValue.h"
 #include "CSSValueKeywords.h"
-#include "GeneratorGeneratedImage.h"
 #include "Gradient.h"
+#include "GradientImage.h"
 #include "Image.h"
 #include "IntSize.h"
 #include "IntSizeHash.h"
@@ -67,7 +67,7 @@ PassRefPtr<Image> CSSGradientValue::image(RenderObject* renderer, const IntSize&
         gradient = static_cast<CSSRadialGradientValue*>(this)->createGradient(renderer, size);
     }
 
-    RefPtr<GeneratorGeneratedImage> newImage = GeneratorGeneratedImage::create(gradient, size);
+    RefPtr<GradientImage> newImage = GradientImage::create(gradient, size);
     if (cacheable)
         saveCachedImageForSize(size, newImage);
 
@@ -468,7 +468,7 @@ bool CSSGradientValue::knownToBeOpaque(const RenderObject*) const
     return true;
 }
 
-String CSSLinearGradientValue::customCssText() const
+String CSSLinearGradientValue::customCSSText() const
 {
     StringBuilder result;
     if (m_gradientType == CSSDeprecatedLinearGradient) {
@@ -741,7 +741,7 @@ bool CSSLinearGradientValue::equals(const CSSLinearGradientValue& other) const
     return equalXorY && m_stops == other.m_stops;
 }
 
-String CSSRadialGradientValue::customCssText() const
+String CSSRadialGradientValue::customCSSText() const
 {
     StringBuilder result;
 

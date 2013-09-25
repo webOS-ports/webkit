@@ -83,14 +83,14 @@ namespace JSC { namespace LLInt {
 #define LLINT_END_IMPL() LLINT_RETURN_TWO(pc, exec)
 
 #define LLINT_THROW(exceptionToThrow) do {                        \
-        vm.throwException(exec, exceptionToThrow);             \
-        pc = returnToThrow(exec, pc);                             \
+        vm.throwException(exec, exceptionToThrow);                \
+        pc = returnToThrow(exec);                                 \
         LLINT_END_IMPL();                                         \
     } while (false)
 
 #define LLINT_CHECK_EXCEPTION() do {                    \
-        if (UNLIKELY(vm.exception())) {           \
-            pc = returnToThrow(exec, pc);               \
+        if (UNLIKELY(vm.exception())) {                 \
+            pc = returnToThrow(exec);                   \
             LLINT_END_IMPL();                           \
         }                                               \
     } while (false)
@@ -142,23 +142,20 @@ namespace JSC { namespace LLInt {
 
 #define LLINT_CALL_THROW(exec, pc, exceptionToThrow) do {               \
         ExecState* __ct_exec = (exec);                                  \
-        Instruction* __ct_pc = (pc);                                    \
-        vm.throwException(__ct_exec, exceptionToThrow);                     \
-        LLINT_CALL_END_IMPL(__ct_exec, callToThrow(__ct_exec, __ct_pc)); \
+        vm.throwException(__ct_exec, exceptionToThrow);                 \
+        LLINT_CALL_END_IMPL(__ct_exec, callToThrow(__ct_exec));         \
     } while (false)
 
-#define LLINT_CALL_CHECK_EXCEPTION(exec, pc) do {                       \
+#define LLINT_CALL_CHECK_EXCEPTION(exec) do {                           \
         ExecState* __cce_exec = (exec);                                 \
-        Instruction* __cce_pc = (pc);                                   \
-        if (UNLIKELY(vm.exception()))                                     \
-            LLINT_CALL_END_IMPL(__cce_exec, callToThrow(__cce_exec, __cce_pc)); \
+        if (UNLIKELY(vm.exception()))                                   \
+            LLINT_CALL_END_IMPL(__cce_exec, callToThrow(__cce_exec));   \
     } while (false)
 
 #define LLINT_CALL_RETURN(exec, pc, callTarget) do {                    \
         ExecState* __cr_exec = (exec);                                  \
-        Instruction* __cr_pc = (pc);                                    \
         void* __cr_callTarget = (callTarget);                           \
-        LLINT_CALL_CHECK_EXCEPTION(__cr_exec->callerFrame(), __cr_pc);  \
+        LLINT_CALL_CHECK_EXCEPTION(__cr_exec->callerFrame());           \
         LLINT_CALL_END_IMPL(__cr_exec, __cr_callTarget);                \
     } while (false)
 
@@ -245,12 +242,12 @@ LLINT_SLOW_PATH_DECL(trace_arityCheck_for_construct)
 
 LLINT_SLOW_PATH_DECL(trace)
 {
-    dataLogF("%p / %p: executing bc#%zu, %s, scope %p\n",
+    dataLogF("%p / %p: executing bc#%zu, %s, scope %p, pc = %p\n",
             exec->codeBlock(),
             exec,
             static_cast<intptr_t>(pc - exec->codeBlock()->instructions().begin()),
             opcodeNames[exec->vm().interpreter->getOpcodeID(pc[0].u.opcode)],
-            exec->scope());
+            exec->scope(), pc);
     if (exec->vm().interpreter->getOpcodeID(pc[0].u.opcode) == op_ret) {
         dataLogF("Will be returning to %p\n", exec->returnPC().value());
         dataLogF("The new cfr will be %p\n", exec->callerFrame());
@@ -429,11 +426,10 @@ LLINT_SLOW_PATH_DECL(stack_check)
     dataLogF("Num vars = %u.\n", exec->codeBlock()->m_numVars);
     dataLogF("Current end is at %p.\n", exec->vm().interpreter->stack().end());
 #endif
-    ASSERT(&exec->registers()[exec->codeBlock()->m_numCalleeRegisters] > exec->vm().interpreter->stack().end());
-    if (UNLIKELY(!vm.interpreter->stack().grow(&exec->registers()[exec->codeBlock()->m_numCalleeRegisters]))) {
-        ReturnAddressPtr returnPC = exec->returnPC();
+    ASSERT(!exec->vm().interpreter->stack().containsAddress(&exec->registers()[-exec->codeBlock()->m_numCalleeRegisters]));
+    if (UNLIKELY(!vm.interpreter->stack().grow(&exec->registers()[-exec->codeBlock()->m_numCalleeRegisters]))) {
         exec = exec->callerFrame();
-        CommonSlowPaths::interpreterThrowInCaller(exec, returnPC, createStackOverflowError(exec));
+        CommonSlowPaths::interpreterThrowInCaller(exec, createStackOverflowError(exec));
         pc = returnToThrowForThrownException(exec);
     }
     LLINT_END_IMPL();
@@ -459,7 +455,7 @@ LLINT_SLOW_PATH_DECL(slow_path_new_object)
 LLINT_SLOW_PATH_DECL(slow_path_new_array)
 {
     LLINT_BEGIN();
-    LLINT_RETURN(constructArray(exec, pc[4].u.arrayAllocationProfile, bitwise_cast<JSValue*>(&LLINT_OP(2)), pc[3].u.operand));
+    LLINT_RETURN(constructArrayNegativeIndexed(exec, pc[4].u.arrayAllocationProfile, bitwise_cast<JSValue*>(&LLINT_OP(2)), pc[3].u.operand));
 }
 
 LLINT_SLOW_PATH_DECL(slow_path_new_array_with_size)
@@ -1054,7 +1050,7 @@ inline SlowPathReturnType genericCall(ExecState* exec, Instruction* pc, CodeSpec
     
     JSValue calleeAsValue = LLINT_OP_C(2).jsValue();
     
-    ExecState* execCallee = exec + pc[4].u.operand;
+    ExecState* execCallee = exec - pc[4].u.operand;
     
     execCallee->setArgumentCountIncludingThis(pc[3].u.operand);
     execCallee->uncheckedR(JSStack::Callee) = calleeAsValue;
@@ -1089,7 +1085,7 @@ LLINT_SLOW_PATH_DECL(slow_path_call_varargs)
     ExecState* execCallee = loadVarargs(
         exec, &vm.interpreter->stack(),
         LLINT_OP_C(3).jsValue(), LLINT_OP_C(4).jsValue(), pc[5].u.operand);
-    LLINT_CALL_CHECK_EXCEPTION(exec, pc);
+    LLINT_CALL_CHECK_EXCEPTION(exec);
     
     execCallee->uncheckedR(JSStack::Callee) = calleeAsValue;
     execCallee->setCallerFrame(exec);
@@ -1103,7 +1099,7 @@ LLINT_SLOW_PATH_DECL(slow_path_call_eval)
     LLINT_BEGIN_NO_SET_PC();
     JSValue calleeAsValue = LLINT_OP(2).jsValue();
     
-    ExecState* execCallee = exec + pc[4].u.operand;
+    ExecState* execCallee = exec - pc[4].u.operand;
     
     execCallee->setArgumentCountIncludingThis(pc[3].u.operand);
     execCallee->setCallerFrame(exec);
@@ -1143,7 +1139,7 @@ LLINT_SLOW_PATH_DECL(slow_path_tear_off_arguments)
 LLINT_SLOW_PATH_DECL(slow_path_strcat)
 {
     LLINT_BEGIN();
-    LLINT_RETURN(jsString(exec, &LLINT_OP(2), pc[3].u.operand));
+    LLINT_RETURN(jsStringFromRegisterArray(exec, &LLINT_OP(2), pc[3].u.operand));
 }
 
 LLINT_SLOW_PATH_DECL(slow_path_to_primitive)

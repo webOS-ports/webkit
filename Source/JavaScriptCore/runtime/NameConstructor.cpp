@@ -32,7 +32,7 @@
 
 namespace JSC {
 
-ASSERT_HAS_TRIVIAL_DESTRUCTOR(NameConstructor);
+STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(NameConstructor);
 
 const ClassInfo NameConstructor::s_info = { "Function", &Base::s_info, 0, 0, CREATE_METHOD_TABLE(NameConstructor) };
 
@@ -50,7 +50,7 @@ void NameConstructor::finishCreation(ExecState* exec, NamePrototype* prototype)
 
 static EncodedJSValue JSC_HOST_CALL constructPrivateName(ExecState* exec)
 {
-    JSValue publicName = exec->argumentCount() ? exec->argument(0) : jsUndefined();
+    JSValue publicName = exec->argument(0);
     return JSValue::encode(NameInstance::create(exec->vm(), exec->lexicalGlobalObject()->privateNameStructure(), publicName.toString(exec)));
 }
 

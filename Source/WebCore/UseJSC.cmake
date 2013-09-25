@@ -46,7 +46,6 @@ list(APPEND WebCore_SOURCES
     bindings/js/JSCanvasRenderingContext2DCustom.cpp
     bindings/js/JSCanvasRenderingContextCustom.cpp
     bindings/js/JSClipboardCustom.cpp
-    bindings/js/JSConsoleCustom.cpp
     bindings/js/JSCryptoCustom.cpp
     bindings/js/JSCustomXPathNSResolver.cpp
     bindings/js/JSDictionary.cpp
@@ -140,7 +139,6 @@ list(APPEND WebCore_SOURCES
     bindings/js/ScriptCallStackFactory.cpp
     bindings/js/ScriptController.cpp
     bindings/js/ScriptDebugServer.cpp
-    bindings/js/ScriptEventListener.cpp
     bindings/js/ScriptFunctionCall.cpp
     bindings/js/ScriptGCEvent.cpp
     bindings/js/ScriptObject.cpp

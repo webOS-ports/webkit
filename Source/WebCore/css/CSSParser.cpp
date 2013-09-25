@@ -89,6 +89,7 @@
 #include <limits.h>
 #include <wtf/BitArray.h>
 #include <wtf/HexNumber.h>
+#include <wtf/StdLibExtras.h>
 #include <wtf/dtoa.h>
 #include <wtf/text/StringBuffer.h>
 #include <wtf/text/StringBuilder.h>
@@ -357,11 +358,6 @@ CSSParser::CSSParser(const CSSParserContext& context)
 CSSParser::~CSSParser()
 {
     clearProperties();
-
-    deleteAllValues(m_floatingSelectors);
-    deleteAllValues(m_floatingSelectorVectors);
-    deleteAllValues(m_floatingValueLists);
-    deleteAllValues(m_floatingFunctions);
 }
 
 template <typename CharacterType>
@@ -411,7 +407,7 @@ void CSSParser::setupParser(const char* prefix, unsigned prefixLength, const Str
     m_length = length;
 
     if (!stringLength || string.is8Bit()) {
-        m_dataStart8 = adoptArrayPtr(new LChar[length]);
+        m_dataStart8 = std::make_unique<LChar[]>(length);
         for (unsigned i = 0; i < m_parsedTextPrefixLength; i++)
             m_dataStart8[i] = prefix[i];
 
@@ -433,7 +429,7 @@ void CSSParser::setupParser(const char* prefix, unsigned prefixLength, const Str
         return;
     }
 
-    m_dataStart16 = adoptArrayPtr(new UChar[length]);
+    m_dataStart16 = std::make_unique<UChar[]>(length);
     for (unsigned i = 0; i < m_parsedTextPrefixLength; i++)
         m_dataStart16[i] = prefix[i];
 
@@ -522,7 +518,7 @@ static inline bool isColorPropertyID(CSSPropertyID propertyId)
     case CSSPropertyWebkitColumnRuleColor:
 #if ENABLE(CSS3_TEXT)
     case CSSPropertyWebkitTextDecorationColor:
-#endif // CSS3_TEXT
+#endif
     case CSSPropertyWebkitTextEmphasisColor:
     case CSSPropertyWebkitTextFillColor:
     case CSSPropertyWebkitTextStrokeColor:
@@ -1011,6 +1007,12 @@ static inline bool isValidKeywordPropertyAndValue(CSSPropertyID propertyId, int 
         if (valueID == CSSValueDisc || valueID == CSSValueCircle || valueID == CSSValueSquare || valueID == CSSValueNone)
             return true;
         break;
+#if ENABLE(IOS_TEXT_AUTOSIZING)
+    case CSSPropertyWebkitTextSizeAdjust:
+        if (valueID == CSSValueAuto || valueID == CSSValueNone)
+            return true;
+        break;
+#endif
     case CSSPropertyWebkitTransformStyle:
         if (valueID == CSSValueFlat || valueID == CSSValuePreserve3d)
             return true;
@@ -1295,7 +1297,11 @@ PassRefPtr<CSSValueList> CSSParser::parseFontFaceValue(const AtomicString& strin
     RefPtr<MutableStylePropertySet> dummyStyle = MutableStylePropertySet::create();
     if (!parseValue(dummyStyle.get(), CSSPropertyFontFamily, string, false, CSSQuirksMode, 0))
         return 0;
-    return static_pointer_cast<CSSValueList>(dummyStyle->getPropertyCSSValue(CSSPropertyFontFamily));
+
+    RefPtr<CSSValue> fontFamily = dummyStyle->getPropertyCSSValue(CSSPropertyFontFamily);
+    if (!fontFamily->isValueList())
+        return 0; // FIXME: "initial" and "inherit" should be parsed as font names in the face attribute.
+    return static_pointer_cast<CSSValueList>(fontFamily.release());
 }
 
 #if ENABLE(CSS_VARIABLES)
@@ -1578,21 +1584,17 @@ void CSSParser::addPropertyWithPrefixingVariant(CSSPropertyID propId, PassRefPtr
 
 void CSSParser::addProperty(CSSPropertyID propId, PassRefPtr<CSSValue> value, bool important, bool implicit)
 {
-#if ENABLE(CSS_VARIABLES)
-    CSSPrimitiveValue* primitiveValue = value->isPrimitiveValue() ? static_cast<CSSPrimitiveValue*>(value.get()) : 0;
-#endif
     // This property doesn't belong to a shorthand or is a CSS variable (which will be resolved later).
     if (!m_currentShorthand
 #if ENABLE(CSS_VARIABLES)
-        || (primitiveValue && primitiveValue->isVariableName())
+        || (value->isPrimitiveValue() && static_cast<CSSPrimitiveValue*>(value.get())->isVariableName())
 #endif
         ) {
         m_parsedProperties.append(CSSProperty(propId, value, important, false, CSSPropertyInvalid, m_implicitShorthand || implicit));
         return;
     }
 
-    const Vector<const StylePropertyShorthand*> shorthands = matchingShorthandsForLonghand(propId);
-    // The longhand does not belong to multiple shorthands.
+    Vector<StylePropertyShorthand> shorthands = matchingShorthandsForLonghand(propId);
     if (shorthands.size() == 1)
         m_parsedProperties.append(CSSProperty(propId, value, important, true, CSSPropertyInvalid, m_implicitShorthand || implicit));
     else
@@ -2479,7 +2481,7 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
     case CSSPropertyWebkitBorderRadius:
         return parseBorderRadius(propId, important);
     case CSSPropertyOutlineOffset:
-        validPrimitive = validUnit(value, FLength | FPercent);
+        validPrimitive = validUnit(value, FLength);
         break;
     case CSSPropertyTextShadow: // CSS2 property, dropped in CSS2.1, back in CSS3, so treat as CSS3
     case CSSPropertyBoxShadow:
@@ -2775,6 +2777,16 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
         // When specifying either type of unit, require non-negative integers
         validPrimitive = (!id && (value->unit == CSSPrimitiveValue::CSS_PERCENTAGE || value->fValue) && validUnit(value, FInteger | FPercent | FNonNeg, CSSQuirksMode));
         break;
+#if ENABLE(IOS_TEXT_AUTOSIZING)
+    case CSSPropertyWebkitTextSizeAdjust:
+        if (id == CSSValueAuto || id == CSSValueNone)
+            validPrimitive = true;
+        else {
+            // FIXME: Handle multilength case where we allow relative units.
+            validPrimitive = (!id && validUnit(value, FPercent | FNonNeg, CSSStrictMode));
+        }
+        break;
+#endif
 
     case CSSPropertyWebkitFontSizeDelta:           // <length>
         validPrimitive = validUnit(value, FLength);
@@ -3553,13 +3565,13 @@ bool CSSParser::parseShorthand(CSSPropertyID propId, const StylePropertyShorthan
 
     // Fill in any remaining properties with the initial value.
     ImplicitScope implicitScope(this, PropertyImplicit);
-    const StylePropertyShorthand* const* const propertiesForInitialization = shorthand.propertiesForInitialization();
+    const StylePropertyShorthand* propertiesForInitialization = shorthand.propertiesForInitialization();
     for (unsigned i = 0; i < shorthand.length(); ++i) {
         if (propertyFound[i])
             continue;
 
         if (propertiesForInitialization) {
-            const StylePropertyShorthand& initProperties = *(propertiesForInitialization[i]);
+            const StylePropertyShorthand& initProperties = propertiesForInitialization[i];
             for (unsigned propIndex = 0; propIndex < initProperties.length(); ++propIndex)
                 addProperty(initProperties.properties()[propIndex], cssValuePool().createImplicitInitialValue(), important);
         } else
@@ -8077,7 +8089,7 @@ bool CSSParser::parseGeneratedImage(CSSParserValueList* valueList, RefPtr<CSSVal
 }
 
 #if ENABLE(CSS_FILTERS)
-bool CSSParser::parseFilterImage(CSSParserValueList* valueList, RefPtr<CSSValue>& crossfade)
+bool CSSParser::parseFilterImage(CSSParserValueList* valueList, RefPtr<CSSValue>& filter)
 {
     RefPtr<CSSFilterImageValue> result;
 
@@ -8085,27 +8097,35 @@ bool CSSParser::parseFilterImage(CSSParserValueList* valueList, RefPtr<CSSValue>
     CSSParserValueList* args = valueList->current()->function->args.get();
     if (!args)
         return false;
-    CSSParserValue* a = args->current();
+    CSSParserValue* value = args->current();
     RefPtr<CSSValue> imageValue;
     RefPtr<CSSValue> filterValue;
 
-    // The first argument is the image. It is a fill image.
-    if (!a || !parseFillImage(args, imageValue))
+    if (!value)
         return false;
-    a = args->next();
+
+    // The first argument is the image. It is a fill image.
+    if (!parseFillImage(args, imageValue)) {
+        if (value->unit == CSSPrimitiveValue::CSS_STRING)
+            imageValue = CSSImageValue::create(completeURL(value->string));
+        else
+            return false;
+    }
+
+    value = args->next();
 
     // Skip a comma
-    if (!isComma(a))
+    if (!isComma(value))
         return false;
-    a = args->next();
+    value = args->next();
 
-    if (!a || !parseFilter(args, filterValue))
+    if (!value || !parseFilter(args, filterValue))
         return false;
-    a = args->next();
+    value = args->next();
 
     result = CSSFilterImageValue::create(imageValue, filterValue);
 
-    crossfade = result;
+    filter = result;
 
     return true;
 }
@@ -9217,14 +9237,12 @@ bool CSSParser::parseFilterRuleParameters()
     return true;
 }
 
-StyleRuleBase* CSSParser::createFilterRule(const CSSParserString& filterName)
+PassRefPtr<StyleRuleBase> CSSParser::createFilterRule(const CSSParserString& filterName)
 {
     RefPtr<StyleRuleFilter> rule = StyleRuleFilter::create(filterName, createStylePropertySet());
     clearProperties();
-    StyleRuleFilter* result = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
-    return result;
+    return rule.release();
 }
 
 #endif // ENABLE(CSS_SHADERS)
@@ -9321,14 +9339,14 @@ PassRefPtr<WebKitCSSFilterValue> CSSParser::parseBuiltinFilterArguments(CSSParse
     return filterValue.release();
 }
 
-bool CSSParser::parseFilter(CSSParserValueList* valueList, RefPtr<CSSValue>& value)
+bool CSSParser::parseFilter(CSSParserValueList* valueList, RefPtr<CSSValue>& result)
 {
     if (!valueList)
         return false;
 
     // The filter is a list of functional primitives that specify individual operations.
     RefPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
-    for (CSSParserValue* value = valueList->current(); value; value = valueList->next()) {
+    for (auto value = valueList->current(); value; value = valueList->next()) {
         if (value->unit != CSSPrimitiveValue::CSS_URI && (value->unit != CSSParserValue::Function || !value->function))
             return false;
 
@@ -9375,7 +9393,7 @@ bool CSSParser::parseFilter(CSSParserValueList* valueList, RefPtr<CSSValue>& val
         }
     }
 
-    value = list;
+    result = list;
 
     return true;
 }
@@ -10170,7 +10188,7 @@ inline UChar*& CSSParser::currentCharacter<UChar>()
 UChar*& CSSParser::currentCharacter16()
 {
     if (!m_currentCharacter16) {
-        m_dataStart16 = adoptArrayPtr(new UChar[m_length]);
+        m_dataStart16 = std::make_unique<UChar[]>(m_length);
         m_currentCharacter16 = m_dataStart16.get();
     }
 
@@ -11444,161 +11462,18 @@ restartAfterComment:
     return token();
 }
 
-CSSParserSelector* CSSParser::createFloatingSelectorWithTagName(const QualifiedName& tagQName)
-{
-    CSSParserSelector* selector = new CSSParserSelector(tagQName);
-    m_floatingSelectors.add(selector);
-    return selector;
-}
-
-CSSParserSelector* CSSParser::createFloatingSelector()
-{
-    CSSParserSelector* selector = new CSSParserSelector;
-    m_floatingSelectors.add(selector);
-    return selector;
-}
-
-PassOwnPtr<CSSParserSelector> CSSParser::sinkFloatingSelector(CSSParserSelector* selector)
-{
-    if (selector) {
-        ASSERT(m_floatingSelectors.contains(selector));
-        m_floatingSelectors.remove(selector);
-    }
-    return adoptPtr(selector);
-}
-
-Vector<OwnPtr<CSSParserSelector> >* CSSParser::createFloatingSelectorVector()
-{
-    Vector<OwnPtr<CSSParserSelector> >* selectorVector = new Vector<OwnPtr<CSSParserSelector> >;
-    m_floatingSelectorVectors.add(selectorVector);
-    return selectorVector;
-}
-
-PassOwnPtr<Vector<OwnPtr<CSSParserSelector> > > CSSParser::sinkFloatingSelectorVector(Vector<OwnPtr<CSSParserSelector> >* selectorVector)
-{
-    if (selectorVector) {
-        ASSERT(m_floatingSelectorVectors.contains(selectorVector));
-        m_floatingSelectorVectors.remove(selectorVector);
-    }
-    return adoptPtr(selectorVector);
-}
-
-CSSParserValueList* CSSParser::createFloatingValueList()
-{
-    CSSParserValueList* list = new CSSParserValueList;
-    m_floatingValueLists.add(list);
-    return list;
-}
-
-PassOwnPtr<CSSParserValueList> CSSParser::sinkFloatingValueList(CSSParserValueList* list)
-{
-    if (list) {
-        ASSERT(m_floatingValueLists.contains(list));
-        m_floatingValueLists.remove(list);
-    }
-    return adoptPtr(list);
-}
-
-CSSParserFunction* CSSParser::createFloatingFunction()
-{
-    CSSParserFunction* function = new CSSParserFunction;
-    m_floatingFunctions.add(function);
-    return function;
-}
-
-PassOwnPtr<CSSParserFunction> CSSParser::sinkFloatingFunction(CSSParserFunction* function)
-{
-    if (function) {
-        ASSERT(m_floatingFunctions.contains(function));
-        m_floatingFunctions.remove(function);
-    }
-    return adoptPtr(function);
-}
-
-CSSParserValue& CSSParser::sinkFloatingValue(CSSParserValue& value)
-{
-    if (value.unit == CSSParserValue::Function) {
-        ASSERT(m_floatingFunctions.contains(value.function));
-        m_floatingFunctions.remove(value.function);
-    }
-    return value;
-}
-
-MediaQueryExp* CSSParser::createFloatingMediaQueryExp(const AtomicString& mediaFeature, CSSParserValueList* values)
-{
-    m_floatingMediaQueryExp = MediaQueryExp::create(mediaFeature, values);
-    return m_floatingMediaQueryExp.get();
-}
-
-PassOwnPtr<MediaQueryExp> CSSParser::sinkFloatingMediaQueryExp(MediaQueryExp* expression)
-{
-    ASSERT_UNUSED(expression, expression == m_floatingMediaQueryExp);
-    return m_floatingMediaQueryExp.release();
-}
-
-Vector<OwnPtr<MediaQueryExp> >* CSSParser::createFloatingMediaQueryExpList()
-{
-    m_floatingMediaQueryExpList = adoptPtr(new Vector<OwnPtr<MediaQueryExp> >);
-    return m_floatingMediaQueryExpList.get();
-}
-
-PassOwnPtr<Vector<OwnPtr<MediaQueryExp> > > CSSParser::sinkFloatingMediaQueryExpList(Vector<OwnPtr<MediaQueryExp> >* list)
-{
-    ASSERT_UNUSED(list, list == m_floatingMediaQueryExpList);
-    return m_floatingMediaQueryExpList.release();
-}
-
-MediaQuery* CSSParser::createFloatingMediaQuery(MediaQuery::Restrictor restrictor, const String& mediaType, PassOwnPtr<Vector<OwnPtr<MediaQueryExp> > > expressions)
-{
-    m_floatingMediaQuery = adoptPtr(new MediaQuery(restrictor, mediaType, expressions));
-    return m_floatingMediaQuery.get();
-}
-
-MediaQuery* CSSParser::createFloatingMediaQuery(PassOwnPtr<Vector<OwnPtr<MediaQueryExp> > > expressions)
-{
-    return createFloatingMediaQuery(MediaQuery::None, "all", expressions);
-}
-
-PassOwnPtr<MediaQuery> CSSParser::sinkFloatingMediaQuery(MediaQuery* query)
-{
-    ASSERT_UNUSED(query, query == m_floatingMediaQuery);
-    return m_floatingMediaQuery.release();
-}
-
-Vector<RefPtr<StyleKeyframe> >* CSSParser::createFloatingKeyframeVector()
-{
-    m_floatingKeyframeVector = adoptPtr(new Vector<RefPtr<StyleKeyframe> >());
-    return m_floatingKeyframeVector.get();
-}
-
-PassOwnPtr<Vector<RefPtr<StyleKeyframe> > > CSSParser::sinkFloatingKeyframeVector(Vector<RefPtr<StyleKeyframe> >* keyframeVector)
-{
-    ASSERT_UNUSED(keyframeVector, m_floatingKeyframeVector == keyframeVector);
-    return m_floatingKeyframeVector.release();
-}
-
-MediaQuerySet* CSSParser::createMediaQuerySet()
-{
-    RefPtr<MediaQuerySet> queries = MediaQuerySet::create();
-    MediaQuerySet* result = queries.get();
-    m_parsedMediaQuerySets.append(queries.release());
-    return result;
-}
-
-StyleRuleBase* CSSParser::createImportRule(const CSSParserString& url, MediaQuerySet* media)
+PassRefPtr<StyleRuleBase> CSSParser::createImportRule(const CSSParserString& url, PassRefPtr<MediaQuerySet> media)
 {
     if (!media || !m_allowImportRules) {
         popRuleData();
         return 0;
     }
     RefPtr<StyleRuleImport> rule = StyleRuleImport::create(url, media);
-    StyleRuleImport* result = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
-    return result;
+    return rule.release();
 }
 
-StyleRuleBase* CSSParser::createMediaRule(MediaQuerySet* media, RuleList* rules)
+PassRefPtr<StyleRuleBase> CSSParser::createMediaRule(PassRefPtr<MediaQuerySet> media, RuleList* rules)
 {
     m_allowImportRules = m_allowNamespaceDeclarations = false;
     RefPtr<StyleRuleMedia> rule;
@@ -11609,19 +11484,17 @@ StyleRuleBase* CSSParser::createMediaRule(MediaQuerySet* media, RuleList* rules)
         rule = StyleRuleMedia::create(MediaQuerySet::create(), emptyRules);
     } else
         rule = StyleRuleMedia::create(media, rules ? *rules : emptyRules);
-    StyleRuleMedia* result = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
-    return result;
+    return rule.release();
 }
 
-StyleRuleBase* CSSParser::createEmptyMediaRule(RuleList* rules)
+PassRefPtr<StyleRuleBase> CSSParser::createEmptyMediaRule(RuleList* rules)
 {
-    return createMediaRule(MediaQuerySet::create().get(), rules);
+    return createMediaRule(MediaQuerySet::create(), rules);
 }
 
 #if ENABLE(CSS3_CONDITIONAL_RULES)
-StyleRuleBase* CSSParser::createSupportsRule(bool conditionIsSupported, RuleList* rules)
+PassRefPtr<StyleRuleBase> CSSParser::createSupportsRule(bool conditionIsSupported, RuleList* rules)
 {
     m_allowImportRules = m_allowNamespaceDeclarations = false;
 
@@ -11643,11 +11516,9 @@ StyleRuleBase* CSSParser::createSupportsRule(bool conditionIsSupported, RuleList
         rule = StyleRuleSupports::create(conditionText, conditionIsSupported, emptyRules);
     }
 
-    StyleRuleSupports* result = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
 
-    return result;
+    return rule.release();
 }
 
 void CSSParser::markSupportsRuleHeaderStart()
@@ -11679,15 +11550,6 @@ PassRefPtr<CSSRuleSourceData> CSSParser::popSupportsRuleData()
 }
 
 #endif
-
-CSSParser::RuleList* CSSParser::createRuleList()
-{
-    OwnPtr<RuleList> list = adoptPtr(new RuleList);
-    RuleList* listPtr = list.get();
-
-    m_parsedRuleLists.append(list.release());
-    return listPtr;
-}
 
 void CSSParser::processAndAddNewRuleToSourceTreeIfNeeded()
 {
@@ -11753,45 +11615,41 @@ bool CSSParser::isLoggingErrors()
 
 void CSSParser::logError(const String& message, int lineNumber)
 {
-    // FIXME: <http://webkit.org/b/114313> CSS Parser ConsoleMessage errors should include column numbers
+    // FIXME: <http://webkit.org/b/114313> CSS parser console message errors should include column numbers.
     PageConsole& console = m_styleSheet->singleOwnerDocument()->page()->console();
     console.addMessage(CSSMessageSource, WarningMessageLevel, message, m_styleSheet->baseURL().string(), lineNumber + 1, 0);
 }
 
-StyleRuleKeyframes* CSSParser::createKeyframesRule(const String& name, PassOwnPtr<Vector<RefPtr<StyleKeyframe> > > popKeyframes)
+PassRefPtr<StyleRuleKeyframes> CSSParser::createKeyframesRule(const String& name, PassOwnPtr<Vector<RefPtr<StyleKeyframe>>> popKeyframes)
 {
-    OwnPtr<Vector<RefPtr<StyleKeyframe> > > keyframes = popKeyframes;
+    OwnPtr<Vector<RefPtr<StyleKeyframe>>> keyframes = popKeyframes;
     m_allowImportRules = m_allowNamespaceDeclarations = false;
     RefPtr<StyleRuleKeyframes> rule = StyleRuleKeyframes::create();
     for (size_t i = 0; i < keyframes->size(); ++i)
         rule->parserAppendKeyframe(keyframes->at(i));
     rule->setName(name);
-    StyleRuleKeyframes* rulePtr = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
-    return rulePtr;
+    return rule.release();
 }
 
-StyleRuleBase* CSSParser::createStyleRule(Vector<OwnPtr<CSSParserSelector> >* selectors)
+PassRefPtr<StyleRuleBase> CSSParser::createStyleRule(Vector<OwnPtr<CSSParserSelector>>* selectors)
 {
-    StyleRule* result = 0;
+    RefPtr<StyleRule> rule;
     if (selectors) {
         m_allowImportRules = false;
         m_allowNamespaceDeclarations = false;
         if (m_hasFontFaceOnlyValues)
             deleteFontFaceOnlyValues();
-        RefPtr<StyleRule> rule = StyleRule::create(m_lastSelectorLineNumber, createStylePropertySet());
+        rule = StyleRule::create(m_lastSelectorLineNumber, createStylePropertySet());
         rule->parserAdoptSelectorVector(*selectors);
-        result = rule.get();
-        m_parsedRules.append(rule.release());
         processAndAddNewRuleToSourceTreeIfNeeded();
     } else
         popRuleData();
     clearProperties();
-    return result;
+    return rule.release();
 }
 
-StyleRuleBase* CSSParser::createFontFaceRule()
+PassRefPtr<StyleRuleBase> CSSParser::createFontFaceRule()
 {
     m_allowImportRules = m_allowNamespaceDeclarations = false;
     for (unsigned i = 0; i < m_parsedProperties.size(); ++i) {
@@ -11810,14 +11668,12 @@ StyleRuleBase* CSSParser::createFontFaceRule()
     }
     RefPtr<StyleRuleFontFace> rule = StyleRuleFontFace::create(createStylePropertySet());
     clearProperties();
-    StyleRuleFontFace* result = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
-    return result;
+    return rule.release();
 }
 
 #if ENABLE(SHADOW_DOM)
-StyleRuleBase* CSSParser::createHostRule(RuleList* rules)
+PassRefPtr<StyleRuleBase> CSSParser::createHostRule(RuleList* rules)
 {
     m_allowImportRules = m_allowNamespaceDeclarations = false;
     RefPtr<StyleRuleHost> rule;
@@ -11827,10 +11683,8 @@ StyleRuleBase* CSSParser::createHostRule(RuleList* rules)
         RuleList emptyRules;
         rule = StyleRuleHost::create(emptyRules);
     }
-    StyleRuleHost* result = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
-    return result;
+    return rule.release();
 }
 #endif
 
@@ -11851,30 +11705,29 @@ QualifiedName CSSParser::determineNameInNamespace(const AtomicString& prefix, co
     return QualifiedName(prefix, localName, m_styleSheet->determineNamespace(prefix));
 }
 
-CSSParserSelector* CSSParser::rewriteSpecifiersWithNamespaceIfNeeded(CSSParserSelector* specifiers)
+void CSSParser::rewriteSpecifiersWithNamespaceIfNeeded(CSSParserSelector& specifiers)
 {
-    if (m_defaultNamespace != starAtom || specifiers->isCustomPseudoElement())
-        return rewriteSpecifiersWithElementName(nullAtom, starAtom, specifiers, /*tagIsForNamespaceRule*/true);
-    return specifiers;
+    if (m_defaultNamespace != starAtom || specifiers.isCustomPseudoElement())
+        rewriteSpecifiersWithElementName(nullAtom, starAtom, specifiers, /*tagIsForNamespaceRule*/true);
 }
 
-CSSParserSelector* CSSParser::rewriteSpecifiersWithElementName(const AtomicString& namespacePrefix, const AtomicString& elementName, CSSParserSelector* specifiers, bool tagIsForNamespaceRule)
+void CSSParser::rewriteSpecifiersWithElementName(const AtomicString& namespacePrefix, const AtomicString& elementName, CSSParserSelector& specifiers, bool tagIsForNamespaceRule)
 {
     AtomicString determinedNamespace = namespacePrefix != nullAtom && m_styleSheet ? m_styleSheet->determineNamespace(namespacePrefix) : m_defaultNamespace;
     QualifiedName tag(namespacePrefix, elementName, determinedNamespace);
 
-    if (!specifiers->isCustomPseudoElement()) {
+    if (!specifiers.isCustomPseudoElement()) {
         if (tag == anyQName())
-            return specifiers;
+            return;
 #if ENABLE(VIDEO_TRACK)
-        if (!(specifiers->pseudoType() == CSSSelector::PseudoCue))
+        if (specifiers.pseudoType() != CSSSelector::PseudoCue)
 #endif
-            specifiers->prependTagSelector(tag, tagIsForNamespaceRule);
-        return specifiers;
+            specifiers.prependTagSelector(tag, tagIsForNamespaceRule);
+        return;
     }
 
-    CSSParserSelector* lastShadowDescendant = specifiers;
-    CSSParserSelector* history = specifiers;
+    CSSParserSelector* lastShadowDescendant = &specifiers;
+    CSSParserSelector* history = &specifiers;
     while (history->tagHistory()) {
         history = history->tagHistory();
         if (history->isCustomPseudoElement() || history->hasShadowDescendant())
@@ -11884,18 +11737,16 @@ CSSParserSelector* CSSParser::rewriteSpecifiersWithElementName(const AtomicStrin
     if (lastShadowDescendant->tagHistory()) {
         if (tag != anyQName())
             lastShadowDescendant->tagHistory()->prependTagSelector(tag, tagIsForNamespaceRule);
-        return specifiers;
+        return;
     }
 
     // For shadow-ID pseudo-elements to be correctly matched, the ShadowDescendant combinator has to be used.
     // We therefore create a new Selector with that combinator here in any case, even if matching any (host) element in any namespace (i.e. '*').
-    OwnPtr<CSSParserSelector> elementNameSelector = adoptPtr(new CSSParserSelector(tag));
-    lastShadowDescendant->setTagHistory(elementNameSelector.release());
+    lastShadowDescendant->setTagHistory(adoptPtr(new CSSParserSelector(tag)));
     lastShadowDescendant->setRelation(CSSSelector::ShadowDescendant);
-    return specifiers;
 }
 
-CSSParserSelector* CSSParser::rewriteSpecifiers(CSSParserSelector* specifiers, CSSParserSelector* newSpecifier)
+OwnPtr<CSSParserSelector> CSSParser::rewriteSpecifiers(OwnPtr<CSSParserSelector> specifiers, OwnPtr<CSSParserSelector> newSpecifier)
 {
 #if ENABLE(VIDEO_TRACK)
     if (newSpecifier->isCustomPseudoElement() || newSpecifier->pseudoType() == CSSSelector::PseudoCue) {
@@ -11903,44 +11754,51 @@ CSSParserSelector* CSSParser::rewriteSpecifiers(CSSParserSelector* specifiers, C
     if (newSpecifier->isCustomPseudoElement()) {
 #endif
         // Unknown pseudo element always goes at the top of selector chain.
-        newSpecifier->appendTagHistory(CSSSelector::ShadowDescendant, sinkFloatingSelector(specifiers));
+        newSpecifier->appendTagHistory(CSSSelector::ShadowDescendant, specifiers.release());
         return newSpecifier;
     }
     if (specifiers->isCustomPseudoElement()) {
         // Specifiers for unknown pseudo element go right behind it in the chain.
-        specifiers->insertTagHistory(CSSSelector::SubSelector, sinkFloatingSelector(newSpecifier), CSSSelector::ShadowDescendant);
+        specifiers->insertTagHistory(CSSSelector::SubSelector, newSpecifier.release(), CSSSelector::ShadowDescendant);
         return specifiers;
     }
-    specifiers->appendTagHistory(CSSSelector::SubSelector, sinkFloatingSelector(newSpecifier));
+    specifiers->appendTagHistory(CSSSelector::SubSelector, newSpecifier.release());
     return specifiers;
 }
 
-StyleRuleBase* CSSParser::createPageRule(PassOwnPtr<CSSParserSelector> pageSelector)
+PassRefPtr<StyleRuleBase> CSSParser::createPageRule(PassOwnPtr<CSSParserSelector> pageSelector)
 {
     // FIXME: Margin at-rules are ignored.
     m_allowImportRules = m_allowNamespaceDeclarations = false;
-    StyleRulePage* pageRule = 0;
+    RefPtr<StyleRulePage> rule;
     if (pageSelector) {
-        RefPtr<StyleRulePage> rule = StyleRulePage::create(createStylePropertySet());
-        Vector<OwnPtr<CSSParserSelector> > selectorVector;
+        rule = StyleRulePage::create(createStylePropertySet());
+        Vector<OwnPtr<CSSParserSelector>> selectorVector;
         selectorVector.append(pageSelector);
         rule->parserAdoptSelectorVector(selectorVector);
-        pageRule = rule.get();
-        m_parsedRules.append(rule.release());
         processAndAddNewRuleToSourceTreeIfNeeded();
     } else
         popRuleData();
     clearProperties();
-    return pageRule;
+    return rule.release();
 }
 
-void CSSParser::setReusableRegionSelectorVector(Vector<OwnPtr<CSSParserSelector> >* selectors)
+OwnPtr<Vector<OwnPtr<CSSParserSelector>>> CSSParser::createSelectorVector()
 {
-    if (selectors)
-        m_reusableRegionSelectorVector.swap(*selectors);
+    if (m_recycledSelectorVector) {
+        m_recycledSelectorVector->shrink(0);
+        return std::move(m_recycledSelectorVector);
+    }
+    return adoptPtr(new Vector<OwnPtr<CSSParserSelector>>);
 }
 
-StyleRuleBase* CSSParser::createRegionRule(Vector<OwnPtr<CSSParserSelector> >* regionSelector, RuleList* rules)
+void CSSParser::recycleSelectorVector(OwnPtr<Vector<OwnPtr<CSSParserSelector>>> vector)
+{
+    if (vector && !m_recycledSelectorVector)
+        m_recycledSelectorVector = std::move(vector);
+}
+
+PassRefPtr<StyleRuleBase> CSSParser::createRegionRule(Vector<OwnPtr<CSSParserSelector>>* regionSelector, RuleList* rules)
 {
     if (!cssRegionsEnabled() || !regionSelector || !rules) {
         popRuleData();
@@ -11951,15 +11809,13 @@ StyleRuleBase* CSSParser::createRegionRule(Vector<OwnPtr<CSSParserSelector> >* r
 
     RefPtr<StyleRuleRegion> regionRule = StyleRuleRegion::create(regionSelector, *rules);
 
-    StyleRuleRegion* result = regionRule.get();
-    m_parsedRules.append(regionRule.release());
     if (isExtractingSourceData())
         addNewRuleToSourceTree(CSSRuleSourceData::createUnknown());
 
-    return result;
+    return regionRule.release();
 }
 
-StyleRuleBase* CSSParser::createMarginAtRule(CSSSelector::MarginBoxType /* marginBox */)
+void CSSParser::createMarginAtRule(CSSSelector::MarginBoxType /* marginBox */)
 {
     // FIXME: Implement margin at-rule here, using:
     //        - marginBox: margin box
@@ -11967,7 +11823,6 @@ StyleRuleBase* CSSParser::createMarginAtRule(CSSSelector::MarginBoxType /* margi
     // Don't forget to also update the action for page symbol in CSSGrammar.y such that margin at-rule data is cleared if page_selector is invalid.
 
     endDeclarationsForMarginBox();
-    return 0; // until this method is implemented.
 }
 
 void CSSParser::startDeclarationsForMarginBox()
@@ -11994,21 +11849,21 @@ void CSSParser::deleteFontFaceOnlyValues()
     }
 }
 
-StyleKeyframe* CSSParser::createKeyframe(CSSParserValueList* keys)
+PassRefPtr<StyleKeyframe> CSSParser::createKeyframe(CSSParserValueList& keys)
 {
     // Create a key string from the passed keys
     StringBuilder keyString;
-    for (unsigned i = 0; i < keys->size(); ++i) {
+    for (unsigned i = 0; i < keys.size(); ++i) {
         // Just as per the comment below, we ignore keyframes with
         // invalid key values (plain numbers or unknown identifiers)
         // marked as CSSPrimitiveValue::CSS_UNKNOWN during parsing.
-        if (keys->valueAt(i)->unit == CSSPrimitiveValue::CSS_UNKNOWN) {
+        if (keys.valueAt(i)->unit == CSSPrimitiveValue::CSS_UNKNOWN) {
             clearProperties();
             return 0;
         }
 
-        ASSERT(keys->valueAt(i)->unit == CSSPrimitiveValue::CSS_NUMBER);
-        float key = static_cast<float>(keys->valueAt(i)->fValue);
+        ASSERT(keys.valueAt(i)->unit == CSSPrimitiveValue::CSS_NUMBER);
+        float key = static_cast<float>(keys.valueAt(i)->fValue);
         if (key < 0 || key > 100) {
             // As per http://www.w3.org/TR/css3-animations/#keyframes,
             // "If a keyframe selector specifies negative percentage values
@@ -12027,9 +11882,7 @@ StyleKeyframe* CSSParser::createKeyframe(CSSParserValueList* keys)
 
     clearProperties();
 
-    StyleKeyframe* keyframePtr = keyframe.get();
-    m_parsedKeyframes.append(keyframe.release());
-    return keyframePtr;
+    return keyframe.release();
 }
 
 void CSSParser::invalidBlockHit()
@@ -12237,18 +12090,16 @@ void CSSParser::markPropertyEnd(bool isImportantFound, bool isPropertyParsed)
 }
 
 #if ENABLE(CSS_DEVICE_ADAPTATION)
-StyleRuleBase* CSSParser::createViewportRule()
+PassRefPtr<StyleRuleBase> CSSParser::createViewportRule()
 {
     m_allowImportRules = m_allowNamespaceDeclarations = false;
 
     RefPtr<StyleRuleViewport> rule = StyleRuleViewport::create(createStylePropertySet());
     clearProperties();
 
-    StyleRuleViewport* result = rule.get();
-    m_parsedRules.append(rule.release());
     processAndAddNewRuleToSourceTreeIfNeeded();
 
-    return result;
+    return rule.release();
 }
 
 bool CSSParser::parseViewportProperty(CSSPropertyID propId, bool important)

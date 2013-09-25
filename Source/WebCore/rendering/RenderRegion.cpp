@@ -49,7 +49,7 @@ using namespace std;
 namespace WebCore {
 
 RenderRegion::RenderRegion(Element* element, RenderFlowThread* flowThread)
-    : RenderBlock(element)
+    : RenderBlockFlow(element)
     , m_flowThread(flowThread)
     , m_parentNamedFlowThread(0)
     , m_isValid(false)
@@ -139,23 +139,19 @@ LayoutRect RenderRegion::overflowRectForFlowThreadPortion(const LayoutRect& flow
 
 RegionOversetState RenderRegion::regionOversetState() const
 {
-    ASSERT(node());
+    ASSERT(generatingElement());
 
     if (!isValid())
         return RegionUndefined;
 
-    if (Element* element = toElement(node()))
-        return element->regionOversetState();
-    
-    return RegionUndefined;
+    return generatingElement()->regionOversetState();
 }
 
 void RenderRegion::setRegionOversetState(RegionOversetState state)
 {
-    ASSERT(node());
+    ASSERT(generatingElement());
 
-    if (Element* element = toElement(node()))
-        element->setRegionOversetState(state);
+    generatingElement()->setRegionOversetState(state);
 }
 
 LayoutUnit RenderRegion::pageLogicalTopForOffset(LayoutUnit /* offset */) const
@@ -190,7 +186,7 @@ void RenderRegion::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOff
     if (style()->visibility() != VISIBLE)
         return;
 
-    RenderBlock::paintObject(paintInfo, paintOffset);
+    RenderBlockFlow::paintObject(paintInfo, paintOffset);
 
     if (!isValid())
         return;
@@ -231,10 +227,8 @@ void RenderRegion::checkRegionStyle()
     bool customRegionStyle = false;
 
     // FIXME: Region styling doesn't work for pseudo elements.
-    if (node()) {
-        Element* regionElement = toElement(node());
-        customRegionStyle = view().document().ensureStyleResolver().checkRegionStyle(regionElement);
-    }
+    if (!isPseudoElement())
+        customRegionStyle = view().document().ensureStyleResolver().checkRegionStyle(generatingElement());
     setHasCustomRegionStyle(customRegionStyle);
     m_flowThread->checkRegionsWithStyling();
 }
@@ -282,7 +276,7 @@ bool RenderRegion::shouldHaveAutoLogicalHeight() const
     
 void RenderRegion::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
 {
-    RenderBlock::styleDidChange(diff, oldStyle);
+    RenderBlockFlow::styleDidChange(diff, oldStyle);
 
     // If the region is not attached to any thread, there is no need to check
     // whether the region has region styling since no content will be displayed
@@ -302,7 +296,7 @@ void RenderRegion::styleDidChange(StyleDifference diff, const RenderStyle* oldSt
 void RenderRegion::layoutBlock(bool relayoutChildren, LayoutUnit)
 {
     StackStats::LayoutCheckPoint layoutCheckPoint;
-    RenderBlock::layoutBlock(relayoutChildren);
+    RenderBlockFlow::layoutBlock(relayoutChildren);
 
     if (isValid()) {
         LayoutRect oldRegionRect(flowThreadPortionRect());
@@ -460,7 +454,7 @@ RenderBoxRegionInfo* RenderRegion::setRenderBoxRegionInfo(const RenderBox* box, 
     return boxInfo.get();
 }
 
-PassOwnPtr<RenderBoxRegionInfo> RenderRegion::takeRenderBoxRegionInfo(const RenderBox* box)
+OwnPtr<RenderBoxRegionInfo> RenderRegion::takeRenderBoxRegionInfo(const RenderBox* box)
 {
     return m_renderBoxRegionInfo.take(box);
 }
@@ -495,15 +489,15 @@ void RenderRegion::setRegionObjectsRegionStyle()
     // Start from content nodes and recursively compute the style in region for the render objects below.
     // If the style in region was already computed, used that style instead of computing a new one.
     const RenderNamedFlowThread& namedFlow = view().flowThreadController().ensureRenderFlowThreadWithName(style()->regionThread());
-    const NamedFlowContentNodes& contentNodes = namedFlow.contentNodes();
+    const NamedFlowContentElements& contentElements = namedFlow.contentElements();
 
-    for (NamedFlowContentNodes::const_iterator iter = contentNodes.begin(), end = contentNodes.end(); iter != end; ++iter) {
-        const Node* node = *iter;
+    for (auto iter = contentElements.begin(), end = contentElements.end(); iter != end; ++iter) {
+        const Element* element = *iter;
         // The list of content nodes contains also the nodes with display:none.
-        if (!node->renderer())
+        if (!element->renderer())
             continue;
 
-        RenderObject* object = node->renderer();
+        RenderObject* object = element->renderer();
         // If the content node does not flow any of its children in this region,
         // we do not compute any style for them in this region.
         if (!flowThread()->objectInFlowRegion(object, this))
@@ -559,14 +553,14 @@ void RenderRegion::restoreRegionObjectsOriginalStyle()
 
 void RenderRegion::insertedIntoTree()
 {
-    RenderBlock::insertedIntoTree();
+    RenderBlockFlow::insertedIntoTree();
 
     attachRegion();
 }
 
 void RenderRegion::willBeRemovedFromTree()
 {
-    RenderBlock::willBeRemovedFromTree();
+    RenderBlockFlow::willBeRemovedFromTree();
 
     detachRegion();
 }
@@ -645,7 +639,7 @@ void RenderRegion::clearObjectStyleInRegion(const RenderObject* object)
 void RenderRegion::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
 {
     if (!isValid()) {
-        RenderBlock::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
+        RenderBlockFlow::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
         return;
     }
 
@@ -658,7 +652,7 @@ void RenderRegion::computePreferredLogicalWidths()
     ASSERT(preferredLogicalWidthsDirty());
 
     if (!isValid()) {
-        RenderBlock::computePreferredLogicalWidths();
+        RenderBlockFlow::computePreferredLogicalWidths();
         return;
     }
 
@@ -696,7 +690,7 @@ void RenderRegion::getRanges(Vector<RefPtr<Range> >& rangeObjects) const
 
 void RenderRegion::updateLogicalHeight()
 {
-    RenderBlock::updateLogicalHeight();
+    RenderBlockFlow::updateLogicalHeight();
 
     if (!hasAutoLogicalHeight())
         return;
@@ -720,7 +714,7 @@ void RenderRegion::updateLogicalHeight()
         setLogicalHeight(newLogicalHeight);
         // Recalculate position of the render block after new logical height is set.
         // (needed in absolute positioning case with bottom alignment for example)
-        RenderBlock::updateLogicalHeight();
+        RenderBlockFlow::updateLogicalHeight();
     }
 }
 

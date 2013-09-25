@@ -95,7 +95,6 @@
 #include "SelectorQuery.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
-#include "StaticNodeList.h"
 #include "StorageEvent.h"
 #include "StyleResolver.h"
 #include "TagNodeList.h"
@@ -116,10 +115,6 @@
 #include <wtf/Vector.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
-
-#ifndef NDEBUG
-#include "RenderLayer.h"
-#endif
 
 #if ENABLE(GESTURE_EVENTS)
 #include "GestureEvent.h"
@@ -357,7 +352,7 @@ Node::~Node()
             willBeDeletedFrom(document);
     }
 
-    m_treeScope->guardDeref();
+    m_treeScope->selfOnlyDeref();
 
     InspectorCounters::decrementCounter(InspectorCounters::NodeCounter);
 }
@@ -963,11 +958,6 @@ bool Node::canStartSelection() const
     return parentOrShadowHostNode() ? parentOrShadowHostNode()->canStartSelection() : true;
 }
 
-bool Node::isRegisteredWithNamedFlow() const
-{
-    return document().renderView()->flowThreadController().isContentNodeRegisteredWithAnyNamedFlow(this);
-}
-
 Element* Node::shadowHost() const
 {
     if (ShadowRoot* root = containingShadowRoot())
@@ -1047,18 +1037,6 @@ void Node::removedFrom(ContainerNode* insertionPoint)
         clearFlag(InDocumentFlag);
     if (isInShadowTree() && !treeScope()->rootNode()->isShadowRoot())
         clearFlag(IsInShadowTreeFlag);
-}
-
-bool Node::needsShadowTreeWalkerSlow() const
-{
-    if (isShadowRoot())
-        return true;
-    if (!isElementNode())
-        return false;
-    const Element* asElement = toElement(this);
-    if (asElement->isPseudoElement() || asElement->beforePseudoElement() || asElement->afterPseudoElement())
-        return true;
-    return asElement->isInsertionPoint() || asElement->shadowRoot();
 }
 
 bool Node::isRootEditableElement() const
@@ -1455,8 +1433,8 @@ void Node::setTextContent(const String& text, ExceptionCode& ec)
         case ENTITY_NODE:
         case ENTITY_REFERENCE_NODE:
         case DOCUMENT_FRAGMENT_NODE: {
-            RefPtr<ContainerNode> container = toContainerNode(this);
-            ChildListMutationScope mutation(this);
+            Ref<ContainerNode> container(*toContainerNode(this));
+            ChildListMutationScope mutation(container.get());
             container->removeChildren();
             if (!text.isEmpty())
                 container->appendChild(document().createTextNode(text), ec);
@@ -1839,14 +1817,9 @@ Node* Node::enclosingLinkEventParentOrSelf()
     return 0;
 }
 
-const AtomicString& Node::interfaceName() const
+EventTargetInterface Node::eventTargetInterface() const
 {
-    return eventNames().interfaceForNode;
-}
-
-ScriptExecutionContext* Node::scriptExecutionContext() const
-{
-    return &document();
+    return NodeEventTargetInterfaceType;
 }
 
 void Node::didMoveToNewDocument(Document* oldDocument)
@@ -2213,7 +2186,7 @@ void Node::defaultEventHandler(Event* event)
                 page->contextMenuController().handleContextMenuEvent(event);
 #endif
     } else if (eventType == eventNames().textInputEvent) {
-        if (event->hasInterface(eventNames().interfaceForTextEvent))
+        if (event->eventInterface() == TextEventInterfaceType)
             if (Frame* frame = document().frame())
                 frame->eventHandler().defaultTextInputEventHandler(static_cast<TextEvent*>(event));
 #if ENABLE(PAN_SCROLLING)
@@ -2233,7 +2206,7 @@ void Node::defaultEventHandler(Event* event)
             }
         }
 #endif
-    } else if ((eventType == eventNames().wheelEvent || eventType == eventNames().mousewheelEvent) && event->hasInterface(eventNames().interfaceForWheelEvent)) {
+    } else if ((eventType == eventNames().wheelEvent || eventType == eventNames().mousewheelEvent) && event->eventInterface() == WheelEventInterfaceType) {
         WheelEvent* wheelEvent = static_cast<WheelEvent*>(event);
         
         // If we don't have a renderer, send the wheel event to the first node we find with a renderer.
@@ -2275,22 +2248,22 @@ bool Node::willRespondToTouchEvents()
 #endif
 }
 
-// This is here for inlining
+// This is here so it can be inlined into Node::removedLastRef.
+// FIXME: Really? Seems like this could be inlined into Node::removedLastRef if it was in TreeScope.h.
+// FIXME: It also not seem important to inline this. Is this really hot?
 inline void TreeScope::removedLastRefToScope()
 {
     ASSERT(!deletionHasBegun());
-    if (m_guardRefCount) {
-        // If removing a child removes the last self-only ref, we don't
-        // want the scope to be destructed until after
-        // removeDetachedChildren returns, so we guard ourselves with an
-        // extra self-only ref.
-        guardRef();
-        dispose();
+    if (m_selfOnlyRefCount) {
+        // If removing a child removes the last self-only ref, we don't want the scope to be destroyed
+        // until after removeDetachedChildren returns, so we protect ourselves with an extra self-only ref.
+        selfOnlyRef();
+        dropChildren();
 #ifndef NDEBUG
-        // We need to do this right now since guardDeref() can delete this.
+        // We need to do this right now since selfOnlyDeref() can delete this.
         rootNode()->m_inRemovedLastRefFunction = false;
 #endif
-        guardDeref();
+        selfOnlyDeref();
     } else {
 #ifndef NDEBUG
         rootNode()->m_inRemovedLastRefFunction = false;
@@ -2363,6 +2336,8 @@ void Node::updateAncestorConnectedSubframeCountForInsertion() const
         node->incrementConnectedSubframeCount(count);
 }
 
+#if ENABLE(STYLE_SCOPED)
+// FIXME: What is this code doing in Node, srsly?
 void Node::registerScopedHTMLStyleChild()
 {
     setHasScopedHTMLStyleChild(true);
@@ -2387,6 +2362,7 @@ size_t Node::numberOfScopedHTMLStyleChildren() const
 
     return count;
 }
+#endif
 
 } // namespace WebCore
 

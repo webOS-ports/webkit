@@ -32,7 +32,7 @@
 
 namespace JSC {
 
-ASSERT_HAS_TRIVIAL_DESTRUCTOR(MathObject);
+STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(MathObject);
 
 static EncodedJSValue JSC_HOST_CALL mathProtoFuncAbs(ExecState*);
 static EncodedJSValue JSC_HOST_CALL mathProtoFuncACos(ExecState*);
@@ -159,7 +159,7 @@ EncodedJSValue JSC_HOST_CALL mathProtoFuncMax(ExecState* exec)
     unsigned argsCount = exec->argumentCount();
     double result = -std::numeric_limits<double>::infinity();
     for (unsigned k = 0; k < argsCount; ++k) {
-        double val = exec->argument(k).toNumber(exec);
+        double val = exec->uncheckedArgument(k).toNumber(exec);
         if (std::isnan(val)) {
             result = QNaN;
             break;
@@ -175,7 +175,7 @@ EncodedJSValue JSC_HOST_CALL mathProtoFuncMin(ExecState* exec)
     unsigned argsCount = exec->argumentCount();
     double result = +std::numeric_limits<double>::infinity();
     for (unsigned k = 0; k < argsCount; ++k) {
-        double val = exec->argument(k).toNumber(exec);
+        double val = exec->uncheckedArgument(k).toNumber(exec);
         if (std::isnan(val)) {
             result = QNaN;
             break;

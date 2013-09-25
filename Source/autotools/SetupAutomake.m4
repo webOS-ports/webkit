@@ -23,7 +23,9 @@ AM_CONDITIONAL([OS_DARWIN],[test "$os_darwin" = "yes"])
 AM_CONDITIONAL([OS_FREEBSD],[test "$os_freebsd" = "yes"])
 
 # Target conditionals.
-AM_CONDITIONAL([TARGET_X11], [test "$with_target" = "x11"])
+AM_CONDITIONAL([TARGET_X11], [test "$with_x11_target" = "yes"])
+AM_CONDITIONAL([TARGET_WAYLAND], [test "$with_wayland_target" = "yes"])
+AM_CONDITIONAL([TARGET_X11_OR_WAYLAND], [test "$with_x11_target" = "yes" || test "$with_wayland_target" = "yes"])
 AM_CONDITIONAL([TARGET_WIN32], [test "$with_target" = "win32"])
 AM_CONDITIONAL([TARGET_QUARTZ], [test "$with_target" = "quartz"])
 AM_CONDITIONAL([TARGET_DIRECTFB], [test "$with_target" = "directfb"])
@@ -46,6 +48,7 @@ AM_CONDITIONAL([USE_OPENGL], [test "$found_opengl" = "yes"])
 AM_CONDITIONAL([USE_GLES2], [test "$enable_gles2" = "yes"])
 
 # WebKit feature conditionals.
+AM_CONDITIONAL([ENABLE_DEVELOPER_MODE], [test "$enable_developer_mode" = "yes"])
 AM_CONDITIONAL([ENABLE_DEBUG],[test "$enable_debug" = "yes"])
 AM_CONDITIONAL([ENABLE_WEBGL],[test "$enable_webgl" = "yes"])
 AM_CONDITIONAL([ENABLE_VIDEO],[test "$enable_video" = "yes"])

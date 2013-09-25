@@ -24,6 +24,7 @@
 
 #include "BindingSecurity.h"
 #include "CachedScript.h"
+#include "DOMConstructorWithDocument.h"
 #include "DOMObjectHashTableMap.h"
 #include "DOMStringList.h"
 #include "ExceptionCode.h"
@@ -45,10 +46,10 @@ using namespace JSC;
 
 namespace WebCore {
 
-ASSERT_HAS_TRIVIAL_DESTRUCTOR(DOMConstructorObject);
-ASSERT_HAS_TRIVIAL_DESTRUCTOR(DOMConstructorWithDocument);
+STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(DOMConstructorObject);
+STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(DOMConstructorWithDocument);
 
-const JSC::HashTable* getHashTableForGlobalData(VM& vm, const JSC::HashTable* staticTable)
+const JSC::HashTable& getHashTableForGlobalData(VM& vm, const JSC::HashTable& staticTable)
 {
     return DOMObjectHashTableMap::mapFor(vm).get(staticTable);
 }

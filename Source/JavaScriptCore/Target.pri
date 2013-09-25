@@ -117,7 +117,6 @@ SOURCES += \
     dfg/DFGAbstractValue.cpp \
     dfg/DFGArgumentsSimplificationPhase.cpp \
     dfg/DFGArrayMode.cpp \
-    dfg/DFGAssemblyHelpers.cpp \
     dfg/DFGAtTailAbstractState.cpp \
     dfg/DFGBackwardsPropagationPhase.cpp \
     dfg/DFGBasicBlock.cpp \
@@ -205,7 +204,8 @@ SOURCES += \
     interpreter/CallFrame.cpp \
     interpreter/Interpreter.cpp \
     interpreter/JSStack.cpp \
-    interpreter/StackIterator.cpp \
+    interpreter/StackVisitor.cpp \
+    jit/AssemblyHelpers.cpp \
     jit/ClosureCallStubRoutine.cpp \
     jit/ExecutableAllocatorFixedVMPool.cpp \
     jit/ExecutableAllocator.cpp \
@@ -350,6 +350,7 @@ SOURCES += \
     runtime/JSTypedArrayPrototypes.cpp \
     runtime/JSTypedArrays.cpp \
     runtime/JSVariableObject.cpp \
+    runtime/JSWeakMap.cpp \
     runtime/JSWithScope.cpp \
     runtime/JSWrapperObject.cpp \
     runtime/LiteralParser.cpp \
@@ -398,11 +399,15 @@ SOURCES += \
     runtime/StructureChain.cpp \
     runtime/StructureRareData.cpp \
     runtime/SymbolTable.cpp \
+    runtime/TestRunnerUtils.cpp \
     runtime/TypedArrayController.cpp \
     runtime/TypedArrayType.cpp \
     runtime/VM.cpp \
     runtime/Watchdog.cpp \
     runtime/WatchdogNone.cpp \
+    runtime/WeakMapConstructor.cpp \
+    runtime/WeakMapData.cpp \
+    runtime/WeakMapPrototype.cpp \
     tools/CodeProfile.cpp \
     tools/CodeProfiling.cpp \
     yarr/YarrJIT.cpp \

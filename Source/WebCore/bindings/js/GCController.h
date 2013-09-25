@@ -27,7 +27,7 @@
 #define GCController_h
 
 #if USE(CF) || PLATFORM(BLACKBERRY)
-#include <wtf/FastAllocBase.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/Noncopyable.h>
 #else
 #include "Timer.h"
@@ -57,7 +57,7 @@ namespace WebCore {
     };
 
     // Function to obtain the global GC controller.
-    GCController& gcController();
+    GCController& gcController() PURE_FUNCTION;
 
 } // namespace WebCore
 

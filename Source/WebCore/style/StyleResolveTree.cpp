@@ -35,10 +35,11 @@
 #include "NodeRenderStyle.h"
 #include "NodeRenderingTraversal.h"
 #include "NodeTraversal.h"
+#include "RenderElement.h"
 #include "RenderFullScreen.h"
 #include "RenderNamedFlowThread.h"
-#include "RenderObject.h"
 #include "RenderText.h"
+#include "RenderView.h"
 #include "RenderWidget.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
@@ -189,7 +190,7 @@ static RenderNamedFlowThread* moveToFlowThreadIfNeeded(Element& element, const R
         return 0;
     FlowThreadController& flowThreadController = element.document().renderView()->flowThreadController();
     RenderNamedFlowThread& parentFlowRenderer = flowThreadController.ensureRenderFlowThreadWithName(style.flowThread());
-    flowThreadController.registerNamedFlowContentNode(&element, &parentFlowRenderer);
+    flowThreadController.registerNamedFlowContentElement(element, parentFlowRenderer);
     return &parentFlowRenderer;
 }
 #endif
@@ -219,17 +220,18 @@ static void createRendererIfNeeded(Element& element, RenderStyle* resolvedStyle)
     if (!element.rendererIsNeeded(*style))
         return;
 
-    RenderObject* parentRenderer;
+    RenderElement* parentRenderer;
     RenderObject* nextRenderer;
     if (parentFlowRenderer) {
         parentRenderer = parentFlowRenderer;
         nextRenderer = parentFlowRenderer->nextRendererForNode(&element);
     } else {
-        parentRenderer = renderingParentNode->renderer();
+        // FIXME: Make this path Element only, handle the root special case separately.
+        parentRenderer = toRenderElement(renderingParentNode->renderer());
         nextRenderer = nextSiblingRenderer(element, renderingParentNode);
     }
 
-    RenderObject* newRenderer = element.createRenderer(document.renderArena(), style.get());
+    RenderElement* newRenderer = element.createRenderer(*document.renderArena(), *style);
     if (!newRenderer)
         return;
     if (!parentRenderer->isChildAllowed(newRenderer, style.get())) {
@@ -279,28 +281,34 @@ static RenderObject* nextSiblingRenderer(const Text& textNode)
     return 0;
 }
 
-static void createTextRenderersForSiblingsAfterAttachIfNeeded(Node* sibling)
+static void reattachTextRenderersForWhitespaceOnlySiblingsAfterAttachIfNeeded(Node& current)
 {
-    ASSERT(sibling->previousSibling());
-    ASSERT(sibling->previousSibling()->renderer());
-    ASSERT(!sibling->renderer());
-    ASSERT(sibling->attached());
-    // If this node got a renderer it may be the previousRenderer() of sibling text nodes and thus affect the
-    // result of Text::textRendererIsNeeded() for those nodes.
-    for (; sibling; sibling = sibling->nextSibling()) {
-        if (sibling->renderer())
-            break;
+    if (current.isInsertionPoint())
+        return;
+    // This function finds sibling text renderers where the results of textRendererIsNeeded may have changed as a result of
+    // the current node gaining or losing the renderer. This can only affect white space text nodes.
+    for (Node* sibling = NodeRenderingTraversal::nextSibling(&current); sibling; sibling = NodeRenderingTraversal::nextSibling(sibling)) {
+        // Siblings haven't been attached yet. They will be handled normally when they are.
         if (!sibling->attached())
-            break; // Assume this means none of the following siblings are attached.
+            return;
+        if (sibling->isElementNode()) {
+            // Text renderers beyond rendered elements can't be affected.
+            if (!sibling->renderer() || isRendererReparented(sibling->renderer()))
+                continue;
+            return;
+        }
         if (!sibling->isTextNode())
             continue;
-        ASSERT(!sibling->renderer());
-        attachTextRenderer(*toText(sibling));
-        // If we again decided not to create a renderer for next, we can bail out the loop,
-        // because it won't affect the result of Text::textRendererIsNeeded() for the rest
-        // of sibling nodes.
-        if (!sibling->renderer())
-            break;
+        Text& textSibling = *toText(sibling);
+        if (!textSibling.length() || !textSibling.containsOnlyWhitespace())
+            return;
+        Text& whitespaceTextSibling = textSibling;
+        bool hadRenderer = whitespaceTextSibling.renderer();
+        detachTextRenderer(whitespaceTextSibling);
+        attachTextRenderer(whitespaceTextSibling);
+        // No changes, futher renderers can't be affected.
+        if (hadRenderer == !!whitespaceTextSibling.renderer())
+            return;
     }
 }
 
@@ -351,7 +359,7 @@ static void createTextRendererIfNeeded(Text& textNode)
     ContainerNode* renderingParentNode = NodeRenderingTraversal::parent(&textNode);
     if (!renderingParentNode)
         return;
-    RenderObject* parentRenderer = renderingParentNode->renderer();
+    RenderElement* parentRenderer = toRenderElement(renderingParentNode->renderer());
     if (!parentRenderer || !parentRenderer->canHaveChildren())
         return;
     if (!renderingParentNode->childShouldCreateRenderer(&textNode))
@@ -367,7 +375,7 @@ static void createTextRendererIfNeeded(Text& textNode)
 
     if (!textRendererIsNeeded(textNode, *parentRenderer, *style))
         return;
-    RenderText* newRenderer = textNode.createTextRenderer(document.renderArena(), style.get());
+    RenderText* newRenderer = textNode.createTextRenderer(*document.renderArena(), *style);
     if (!newRenderer)
         return;
     if (!parentRenderer->isChildAllowed(newRenderer, style.get())) {
@@ -384,10 +392,6 @@ static void createTextRendererIfNeeded(Text& textNode)
     // Parent takes care of the animations, no need to call setAnimatableStyle.
     newRenderer->setStyle(style.release());
     parentRenderer->addChild(newRenderer, nextRenderer);
-
-    Node* sibling = textNode.nextSibling();
-    if (sibling && !sibling->renderer() && sibling->attached())
-        createTextRenderersForSiblingsAfterAttachIfNeeded(sibling);
 }
 
 void attachTextRenderer(Text& textNode)
@@ -413,34 +417,23 @@ void updateTextRendererAfterContentChange(Text& textNode, unsigned offsetOfRepla
     RenderText* textRenderer = toRenderText(textNode.renderer());
     if (!textRenderer) {
         attachTextRenderer(textNode);
+        reattachTextRenderersForWhitespaceOnlySiblingsAfterAttachIfNeeded(textNode);
         return;
     }
     RenderObject* parentRenderer = NodeRenderingTraversal::parent(&textNode)->renderer();
     if (!textRendererIsNeeded(textNode, *parentRenderer, *textRenderer->style())) {
         detachTextRenderer(textNode);
         attachTextRenderer(textNode);
+        reattachTextRenderersForWhitespaceOnlySiblingsAfterAttachIfNeeded(textNode);
         return;
     }
     textRenderer->setTextWithOffset(textNode.dataImpl(), offsetOfReplacedData, lengthOfReplacedData);
 }
 
-#ifndef NDEBUG
-static bool childAttachedAllowedWhenAttachingChildren(ContainerNode& node)
-{
-    if (node.isShadowRoot())
-        return true;
-    if (node.isInsertionPoint())
-        return true;
-    if (node.isElementNode() && toElement(&node)->shadowRoot())
-        return true;
-    return false;
-}
-#endif
-
 static void attachChildren(ContainerNode& current)
 {
     for (Node* child = current.firstChild(); child; child = child->nextSibling()) {
-        ASSERT(!child->attached() || childAttachedAllowedWhenAttachingChildren(current));
+        ASSERT(!child->attached() || current.shadowRoot());
         if (child->attached())
             continue;
         if (child->isTextNode()) {
@@ -492,10 +485,6 @@ static void attachRenderTree(Element& current, RenderStyle* resolvedStyle)
         parentPusher.push();
 
     attachChildren(current);
-
-    Node* sibling = current.nextSibling();
-    if (current.renderer() && sibling && !sibling->renderer() && sibling->attached())
-        createTextRenderersForSiblingsAfterAttachIfNeeded(sibling);
 
     current.setAttached(true);
     current.clearNeedsStyleRecalc();
@@ -611,6 +600,8 @@ static Change resolveLocal(Element& current, Change inheritedChange)
         if (current.attached())
             detachRenderTree(current, ReattachDetach);
         attachRenderTree(current, newStyle.get());
+        reattachTextRenderersForWhitespaceOnlySiblingsAfterAttachIfNeeded(current);
+
         return Detach;
     }
 
@@ -651,8 +642,10 @@ static void updateTextStyle(Text& text, RenderStyle* parentElementStyle, Style::
         return;
     if (renderer)
         renderer->setText(text.dataImpl());
-    else
+    else {
         attachTextRenderer(text);
+        reattachTextRenderersForWhitespaceOnlySiblingsAfterAttachIfNeeded(text);
+    }
     text.clearNeedsStyleRecalc();
 }
 
@@ -746,7 +739,7 @@ void resolveTree(Element& current, Change change)
     bool hasIndirectAdjacentRules = current.childrenAffectedByForwardPositionalRules();
 
 #if PLATFORM(IOS)
-    CheckForVisibilityChangeOnRecalcStyle checkForVisibilityChange(current, current->renderStyle());
+    CheckForVisibilityChangeOnRecalcStyle checkForVisibilityChange(&current, current.renderStyle());
 #endif
 
     if (change > NoChange || current.needsStyleRecalc())
@@ -819,9 +812,9 @@ void resolveTree(Document& document, Change change)
         }
 #endif
 
-        Style::Change documentChange = determineChange(documentStyle.get(), document.renderer()->style(), document.settings());
+        Style::Change documentChange = determineChange(documentStyle.get(), document.renderView()->style(), document.settings());
         if (documentChange != NoChange)
-            document.renderer()->setStyle(documentStyle.release());
+            document.renderView()->setStyle(documentStyle.release());
     }
 
     Element* documentElement = document.documentElement();
@@ -835,6 +828,7 @@ void resolveTree(Document& document, Change change)
 void attachRenderTree(Element& element)
 {
     attachRenderTree(element, nullptr);
+    reattachTextRenderersForWhitespaceOnlySiblingsAfterAttachIfNeeded(element);
 }
 
 void detachRenderTree(Element& element)
@@ -851,7 +845,7 @@ void reattachRenderTree(Element& current)
 {
     if (current.attached())
         detachRenderTree(current, ReattachDetach);
-    attachRenderTree(current, nullptr);
+    attachRenderTree(current);
 }
 
 }

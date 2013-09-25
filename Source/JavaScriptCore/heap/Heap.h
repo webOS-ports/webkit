@@ -30,6 +30,7 @@
 #include "GCThreadSharedData.h"
 #include "HandleSet.h"
 #include "HandleStack.h"
+#include "HeapOperation.h"
 #include "JITStubRoutineSet.h"
 #include "MarkedAllocator.h"
 #include "MarkedBlock.h"
@@ -69,8 +70,6 @@ namespace JSC {
     typedef std::pair<JSValue, WTF::String> ValueStringPair;
     typedef HashCountedSet<JSCell*> ProtectCountSet;
     typedef HashCountedSet<const char*> TypeCountSet;
-
-    enum OperationInProgress { NoOperation, Allocation, Collection };
 
     enum HeapType { SmallHeap, LargeHeap };
 
@@ -166,7 +165,8 @@ namespace JSC {
         HandleSet* handleSet() { return &m_handleSet; }
         HandleStack* handleStack() { return &m_handleStack; }
 
-        void canonicalizeCellLivenessData();
+        void willStartIterating();
+        void didFinishIterating();
         void getConservativeRegisterRoots(HashSet<JSCell*>& roots);
 
         double lastGCLength() { return m_lastGCLength; }
@@ -232,6 +232,8 @@ namespace JSC {
         void zombifyDeadObjects();
         void markDeadObjects();
 
+        size_t sizeAfterCollect();
+
         JSStack& stack();
         BlockAllocator& blockAllocator();
         
@@ -247,8 +249,11 @@ namespace JSC {
         size_t m_bytesAllocatedLimit;
         size_t m_bytesAllocated;
         size_t m_bytesAbandoned;
+
+        size_t m_totalBytesVisited;
+        size_t m_totalBytesCopied;
         
-        OperationInProgress m_operationInProgress;
+        HeapOperation m_operationInProgress;
         BlockAllocator m_blockAllocator;
         MarkedSpace m_objectSpace;
         CopiedSpace m_storageSpace;
@@ -305,6 +310,8 @@ namespace JSC {
 
     inline bool Heap::shouldCollect()
     {
+        if (isDeferred())
+            return false;
         if (Options::gcMaxHeapSize())
             return m_bytesAllocated > Options::gcMaxHeapSize() && m_isSafeToCollect && m_operationInProgress == NoOperation;
         return m_bytesAllocated > m_bytesAllocatedLimit && m_isSafeToCollect && m_operationInProgress == NoOperation;

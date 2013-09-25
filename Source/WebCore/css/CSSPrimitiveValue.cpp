@@ -600,6 +600,12 @@ double CSSPrimitiveValue::computeLengthDouble(const RenderStyle* style, const Re
         case CSS_CALC_PERCENTAGE_WITH_NUMBER:
             ASSERT_NOT_REACHED();
             return -1.0;
+        case CSS_VH:
+        case CSS_VW:
+        case CSS_VMAX:
+        case CSS_VMIN:
+            factor = 1.0;
+            break;
         default:
             ASSERT_NOT_REACHED();
             return -1.0;
@@ -906,7 +912,7 @@ ALWAYS_INLINE static String formatNumber(double number, const char (&characters)
     return formatNumber(number, characters, characterCount - 1);
 }
 
-String CSSPrimitiveValue::customCssText() const
+String CSSPrimitiveValue::customCSSText() const
 {
     // FIXME: return the original value instead of a generated one (e.g. color
     // name if it was specified) - check what spec says about this
@@ -1178,7 +1184,7 @@ String CSSPrimitiveValue::customSerializeResolvingVariables(const HashMap<Atomic
         return quadVal->serializeResolvingVariables(variables);
     if (CSSBasicShape* shapeValue = getShapeValue())
         return shapeValue->serializeResolvingVariables(variables);
-    return customCssText();
+    return customCSSText();
 }
 
 bool CSSPrimitiveValue::hasVariableReference() const

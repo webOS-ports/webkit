@@ -20,6 +20,19 @@ AC_ARG_ENABLE(debug,
     [],[enable_debug="no"])
 AC_MSG_RESULT([$enable_debug])
 
+AC_MSG_CHECKING([whether to enable developer mode])
+AC_ARG_ENABLE(developer-mode,
+    AC_HELP_STRING([--enable-developer-mode], [development-oriented build (no symbols filter and builds testing harness) [default=no (yes for debug builds)]]),
+    [enable_developer_mode=$enableval],
+    [
+        if test "$enable_debug" = "yes"; then
+            enable_developer_mode="yes"
+        else
+            enable_developer_mode="no"
+        fi
+    ])
+AC_MSG_RESULT([$enable_developer_mode])
+
 AC_MSG_CHECKING([whether to enable optimized builds])
 AC_ARG_ENABLE(optimizations, 
     AC_HELP_STRING([--enable-optimizations], [turn on build-time optimizations [default=yes]]),
@@ -47,15 +60,32 @@ AC_MSG_RESULT([$with_gtk])
 
 AC_MSG_CHECKING([the target windowing system])
 AC_ARG_WITH(target,
-    AC_HELP_STRING([--with-target=@<:@x11/win32/quartz/directfb@:>@], [Select webkit target [default=x11]]),
+    AC_HELP_STRING([--with-target=@<:@x11/wayland/x11,wayland/win32/quartz/directfb@:>@], [Select webkit target [default=x11]]),
     [
         case "$with_target" in
-            x11|win32|quartz|directfb) ;;
-            *) AC_MSG_ERROR([Invalid target: must be x11, quartz, win32, or directfb.]) ;;
+            x11|wayland|x11,wayland|win32|quartz|directfb) ;;
+            *) AC_MSG_ERROR([Invalid target: must be x11, wayland, both x11 and wayland (x11,wayland), quartz, win32, or directfb.]) ;;
         esac
     ],
     [with_target="x11"])
 AC_MSG_RESULT([$with_target])
+
+# To support building for X11 and Wayland targets concurrently, the $with_target value is checked for this
+# special case and two additional variables are introduced that denote specifically whether we're building
+# the X11 target, the Wayland target, both of these or neither.
+if test "$with_target" = "x11,wayland"; then
+    with_x11_target=yes
+    with_wayland_target=yes
+elif test "$with_target" = "x11"; then
+    with_x11_target=yes
+    with_wayland_target=no
+elif test "$with_target" = "wayland"; then
+    with_x11_target=no
+    with_wayland_target=yes
+else
+    with_x11_target=no
+    with_wayland_target=no
+fi
 
 AC_MSG_CHECKING([whether to enable spellcheck support])
 AC_ARG_ENABLE([spellcheck],

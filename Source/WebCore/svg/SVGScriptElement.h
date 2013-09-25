@@ -26,7 +26,6 @@
 #include "SVGAnimatedString.h"
 #include "SVGElement.h"
 #include "SVGExternalResourcesRequired.h"
-#include "SVGNames.h"
 #include "SVGURIReference.h"
 #include "ScriptElement.h"
 
@@ -37,13 +36,13 @@ class SVGScriptElement FINAL : public SVGElement
                              , public SVGExternalResourcesRequired
                              , public ScriptElement {
 public:
-    static PassRefPtr<SVGScriptElement> create(const QualifiedName&, Document*, bool wasInsertedByParser);
+    static PassRefPtr<SVGScriptElement> create(const QualifiedName&, Document&, bool wasInsertedByParser);
 
     String type() const;
     void setType(const String&);
 
 private:
-    SVGScriptElement(const QualifiedName&, Document*, bool wasInsertedByParser, bool alreadyStarted);
+    SVGScriptElement(const QualifiedName&, Document&, bool wasInsertedByParser, bool alreadyStarted);
 
     bool isSupportedAttribute(const QualifiedName&);
     virtual void parseAttribute(const QualifiedName&, const AtomicString&) OVERRIDE;
@@ -88,11 +87,7 @@ private:
     Timer<SVGElement> m_svgLoadEventTimer;
 };
 
-inline SVGScriptElement* toSVGScriptElement(Node* node)
-{
-    ASSERT_WITH_SECURITY_IMPLICATION(!node || node->hasTagName(SVGNames::scriptTag));
-    return static_cast<SVGScriptElement*>(node);
-}
+ELEMENT_TYPE_CASTS(SVGScriptElement)
 
 } // namespace WebCore
 

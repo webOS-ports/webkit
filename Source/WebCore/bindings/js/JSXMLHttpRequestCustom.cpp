@@ -45,7 +45,7 @@
 #include "JSEvent.h"
 #include "JSEventListener.h"
 #include "XMLHttpRequest.h"
-#include <interpreter/StackIterator.h>
+#include <interpreter/StackVisitor.h>
 #include <runtime/ArrayBuffer.h>
 #include <runtime/Error.h>
 #include <runtime/JSArrayBuffer.h>
@@ -88,18 +88,17 @@ JSValue JSXMLHttpRequest::open(ExecState* exec)
     if (exec->argumentCount() < 2)
         return exec->vm().throwException(exec, createNotEnoughArgumentsError(exec));
 
-    const KURL& url = impl()->scriptExecutionContext()->completeURL(exec->argument(1).toString(exec)->value(exec));
-    String method = exec->argument(0).toString(exec)->value(exec);
+    const KURL& url = impl()->scriptExecutionContext()->completeURL(exec->uncheckedArgument(1).toString(exec)->value(exec));
+    String method = exec->uncheckedArgument(0).toString(exec)->value(exec);
 
     ExceptionCode ec = 0;
     if (exec->argumentCount() >= 3) {
-        bool async = exec->argument(2).toBoolean(exec);
+        bool async = exec->uncheckedArgument(2).toBoolean(exec);
+        if (!exec->argument(3).isUndefined()) {
+            String user = valueToStringWithNullCheck(exec, exec->uncheckedArgument(3));
 
-        if (exec->argumentCount() >= 4 && !exec->argument(3).isUndefined()) {
-            String user = valueToStringWithNullCheck(exec, exec->argument(3));
-
-            if (exec->argumentCount() >= 5 && !exec->argument(4).isUndefined()) {
-                String password = valueToStringWithNullCheck(exec, exec->argument(4));
+            if (!exec->argument(4).isUndefined()) {
+                String password = valueToStringWithNullCheck(exec, exec->uncheckedArgument(4));
                 impl()->open(method, url, async, user, password, ec);
             } else
                 impl()->open(method, url, async, user, ec);
@@ -116,26 +115,32 @@ class SendFunctor {
 public:
     SendFunctor()
         : m_hasSkippedFirstFrame(false)
-        , m_hasViableFrame(false)
+        , m_line(0)
     {
     }
 
-    bool hasViableFrame() const { return m_hasViableFrame; }
+    unsigned line() const { return m_line; }
+    String url() const { return m_url; }
 
-    StackIterator::Status operator()(StackIterator&)
+    StackVisitor::Status operator()(StackVisitor& visitor)
     {
         if (!m_hasSkippedFirstFrame) {
             m_hasSkippedFirstFrame = true;
-            return StackIterator::Continue;
+            return StackVisitor::Continue;
         }
 
-        m_hasViableFrame = true;
-        return StackIterator::Done;
+        unsigned line = 0;
+        unsigned unusedColumn = 0;
+        visitor->computeLineAndColumn(line, unusedColumn);
+        m_line = line;
+        m_url = visitor->sourceURL();
+        return StackVisitor::Done;
     }
 
 private:
     bool m_hasSkippedFirstFrame;
-    bool m_hasViableFrame;
+    unsigned m_line;
+    String m_url;
 };
 
 JSValue JSXMLHttpRequest::send(ExecState* exec)
@@ -143,40 +148,27 @@ JSValue JSXMLHttpRequest::send(ExecState* exec)
     InspectorInstrumentation::willSendXMLHttpRequest(impl()->scriptExecutionContext(), impl()->url());
 
     ExceptionCode ec = 0;
-    if (!exec->argumentCount())
+    JSValue val = exec->argument(0);
+    if (val.isUndefinedOrNull())
         impl()->send(ec);
-    else {
-        JSValue val = exec->argument(0);
-        if (val.isUndefinedOrNull())
-            impl()->send(ec);
-        else if (val.inherits(JSDocument::info()))
-            impl()->send(toDocument(val), ec);
-        else if (val.inherits(JSBlob::info()))
-            impl()->send(toBlob(val), ec);
-        else if (val.inherits(JSDOMFormData::info()))
-            impl()->send(toDOMFormData(val), ec);
-        else if (val.inherits(JSArrayBuffer::info()))
-            impl()->send(toArrayBuffer(val), ec);
-        else if (val.inherits(JSArrayBufferView::info())) {
-            RefPtr<ArrayBufferView> view = toArrayBufferView(val);
-            impl()->send(view.get(), ec);
-        } else
-            impl()->send(val.toString(exec)->value(exec), ec);
-    }
+    else if (val.inherits(JSDocument::info()))
+        impl()->send(toDocument(val), ec);
+    else if (val.inherits(JSBlob::info()))
+        impl()->send(toBlob(val), ec);
+    else if (val.inherits(JSDOMFormData::info()))
+        impl()->send(toDOMFormData(val), ec);
+    else if (val.inherits(JSArrayBuffer::info()))
+        impl()->send(toArrayBuffer(val), ec);
+    else if (val.inherits(JSArrayBufferView::info())) {
+        RefPtr<ArrayBufferView> view = toArrayBufferView(val);
+        impl()->send(view.get(), ec);
+    } else
+        impl()->send(val.toString(exec)->value(exec), ec);
 
     SendFunctor functor;
-    StackIterator iter = exec->begin();
-    iter.iterate(functor);
-    if (functor.hasViableFrame()) {
-        unsigned line = 0;
-        unsigned unusuedColumn = 0;
-        iter->computeLineAndColumn(line, unusuedColumn);
-        impl()->setLastSendLineNumber(line);
-        impl()->setLastSendURL(iter->sourceURL());
-    } else {
-        impl()->setLastSendLineNumber(0);
-        impl()->setLastSendURL(String());
-    }
+    exec->iterate(functor);
+    impl()->setLastSendLineNumber(functor.line());
+    impl()->setLastSendURL(functor.url());
     setDOMException(exec, ec);
     return jsUndefined();
 }

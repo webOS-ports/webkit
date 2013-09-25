@@ -64,7 +64,7 @@ WebInspector.TextEditor = function(element, mimeType, delegate)
     this._searchResults = [];
     this._currentSearchResultIndex = -1;
 
-    this._formatted = false
+    this._formatted = false;
     this._formatterSourceMap = null;
 
     this._delegate = delegate || null;
@@ -185,7 +185,7 @@ WebInspector.TextEditor.prototype = {
     {
         const supportedModes = {
             "javascript": true,
-            "css-base": true,
+            "css": true,
         };
 
         var mode = this._codeMirror.getMode();
@@ -218,6 +218,8 @@ WebInspector.TextEditor.prototype = {
 
     set mimeType(newMIMEType)
     {
+        newMIMEType = parseMIMEType(newMIMEType).type;
+
         this._mimeType = newMIMEType;
         this._codeMirror.setOption("mode", newMIMEType);
     },
@@ -1023,7 +1025,7 @@ WebInspector.TextEditor.prototype = {
         if (lineNumber !== undefined) {
             // We have a new line that will now show the dragged breakpoint.
             var newColumnBreakpoints = {};
-            var columnNumber = (lineNumber === this._lineNumberWithMousedDownBreakpoint ? this._columnNumberWithDraggedBreakpoint : 0)
+            var columnNumber = (lineNumber === this._lineNumberWithMousedDownBreakpoint ? this._columnNumberWithDraggedBreakpoint : 0);
             newColumnBreakpoints[columnNumber] = this._draggingBreakpointInfo;
             this._previousColumnBreakpointInfo = this._allColumnBreakpointInfoForLine(lineNumber);
             this._setColumnBreakpointInfoForLine(lineNumber, newColumnBreakpoints);
@@ -1180,7 +1182,6 @@ WebInspector.TextEditor.prototype = {
                 }
 
                 if (!isNaN(this._executionLineNumber)) {
-                    console.assert(this._executionLineHandle);
                     console.assert(!isNaN(this._executionColumnNumber));
                     newExecutionLocation = this._formatterSourceMap.originalToFormatted(this._executionLineNumber, this._executionColumnNumber);
                 }
@@ -1204,7 +1205,6 @@ WebInspector.TextEditor.prototype = {
                 }
 
                 if (!isNaN(this._executionLineNumber)) {
-                    console.assert(this._executionLineHandle);
                     console.assert(!isNaN(this._executionColumnNumber));
                     newExecutionLocation = this._formatterSourceMap.formattedToOriginal(this._executionLineNumber, this._executionColumnNumber);
                 }

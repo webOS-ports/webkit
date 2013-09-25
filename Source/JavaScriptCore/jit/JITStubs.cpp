@@ -408,6 +408,7 @@ template<typename T> static T throwExceptionFromOpCall(JITStackFrame& jitStackFr
 {
     CallFrame* callFrame = newCallFrame->callerFrame()->removeHostCallFrameFlag();
     jitStackFrame.callFrame = callFrame;
+    ASSERT(callFrame);
     callFrame->vm().topCallFrame = callFrame;
     if (createError)
         callFrame->vm().throwException(callFrame, (*createError)(callFrame));
@@ -438,7 +439,7 @@ DEFINE_STUB_FUNCTION(void*, stack_check)
     STUB_INIT_STACK_FRAME(stackFrame);
     CallFrame* callFrame = stackFrame.callFrame;
 
-    if (UNLIKELY(!stackFrame.stack->grow(&callFrame->registers()[callFrame->codeBlock()->m_numCalleeRegisters]))) {
+    if (UNLIKELY(!stackFrame.stack->grow(&callFrame->registers()[-callFrame->codeBlock()->m_numCalleeRegisters]))) {
         ErrorWithExecFunctor functor = ErrorWithExecFunctor(createStackOverflowError);
         return throwExceptionFromOpCall<void*>(stackFrame, callFrame, STUB_RETURN_ADDRESS, &functor);
     }
@@ -1477,7 +1478,7 @@ DEFINE_STUB_FUNCTION(JSObject*, op_new_array)
 {
     STUB_INIT_STACK_FRAME(stackFrame);
 
-    return constructArray(stackFrame.callFrame, stackFrame.args[2].arrayAllocationProfile(), reinterpret_cast<JSValue*>(&stackFrame.callFrame->registers()[stackFrame.args[0].int32()]), stackFrame.args[1].int32());
+    return constructArrayNegativeIndexed(stackFrame.callFrame, stackFrame.args[2].arrayAllocationProfile(), reinterpret_cast<JSValue*>(&stackFrame.callFrame->registers()[stackFrame.args[0].int32()]), stackFrame.args[1].int32());
 }
 
 DEFINE_STUB_FUNCTION(JSObject*, op_new_array_with_size)
@@ -1978,7 +1979,7 @@ DEFINE_STUB_FUNCTION(void*, op_throw)
 {
     STUB_INIT_STACK_FRAME(stackFrame);
     stackFrame.vm->throwException(stackFrame.callFrame, stackFrame.args[0].jsValue()); 
-    ExceptionHandler handler = jitThrow(stackFrame.vm, stackFrame.callFrame, stackFrame.args[0].jsValue(), STUB_RETURN_ADDRESS);
+    ExceptionHandler handler = genericUnwind(stackFrame.vm, stackFrame.callFrame, stackFrame.args[0].jsValue());
     STUB_SET_RETURN_ADDRESS(handler.catchRoutine);
     return handler.callFrame;
 }
@@ -2157,7 +2158,7 @@ DEFINE_STUB_FUNCTION(void*, vm_throw)
 {
     STUB_INIT_STACK_FRAME(stackFrame);
     VM* vm = stackFrame.vm;
-    ExceptionHandler handler = jitThrow(vm, stackFrame.callFrame, vm->exception(), vm->exceptionLocation);
+    ExceptionHandler handler = genericUnwind(vm, stackFrame.callFrame, vm->exception());
     STUB_SET_RETURN_ADDRESS(handler.catchRoutine);
     return handler.callFrame;
 }
@@ -2173,7 +2174,7 @@ EncodedExceptionHandler JIT_STUB cti_vm_handle_exception(CallFrame* callFrame)
 
     VM* vm = callFrame->codeBlock()->vm();
     vm->topCallFrame = callFrame;
-    return encode(jitThrowNew(vm, callFrame, vm->exception()));
+    return encode(genericUnwind(vm, callFrame, vm->exception()));
 }
 #else
 ExceptionHandler JIT_STUB cti_vm_handle_exception(CallFrame* callFrame)
@@ -2186,7 +2187,7 @@ ExceptionHandler JIT_STUB cti_vm_handle_exception(CallFrame* callFrame)
 
     VM* vm = callFrame->codeBlock()->vm();
     vm->topCallFrame = callFrame;
-    return jitThrowNew(vm, callFrame, vm->exception());
+    return genericUnwind(vm, callFrame, vm->exception());
 }
 #endif
 

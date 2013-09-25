@@ -47,7 +47,7 @@ using namespace WTF;
 
 namespace JSC {
 
-ASSERT_HAS_TRIVIAL_DESTRUCTOR(StringPrototype);
+STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(StringPrototype);
 
 static EncodedJSValue JSC_HOST_CALL stringProtoFuncToString(ExecState*);
 static EncodedJSValue JSC_HOST_CALL stringProtoFuncCharAt(ExecState*);
@@ -750,8 +750,8 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncCharCodeAt(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL stringProtoFuncConcat(ExecState* exec)
 {
     JSValue thisValue = exec->hostThisValue();
-    if (thisValue.isString() && (exec->argumentCount() == 1))
-        return JSValue::encode(jsString(exec, asString(thisValue), exec->argument(0).toString(exec)));
+    if (thisValue.isString() && exec->argumentCount() == 1)
+        return JSValue::encode(jsString(exec, asString(thisValue), exec->uncheckedArgument(0).toString(exec)));
 
     if (!checkObjectCoercible(thisValue))
         return throwVMTypeError(exec);

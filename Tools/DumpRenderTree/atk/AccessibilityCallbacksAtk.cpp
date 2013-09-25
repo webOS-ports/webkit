@@ -48,13 +48,16 @@
 #include "WebCoreSupport/DumpRenderTreeSupportEfl.h"
 #endif
 
+typedef HashMap<PlatformUIElement, AccessibilityNotificationHandler*> NotificationHandlersMap;
+
 static guint stateChangeListenerId = 0;
 static guint focusEventListenerId = 0;
 static guint activeDescendantChangedListenerId = 0;
 static guint childrenChangedListenerId = 0;
 static guint propertyChangedListenerId = 0;
 static guint visibleDataChangedListenerId = 0;
-static HashMap<PlatformUIElement, AccessibilityNotificationHandler*> notificationHandlers;
+static NotificationHandlersMap notificationHandlers;
+static AccessibilityNotificationHandler* globalNotificationHandler = 0;
 
 extern bool loggingAccessibilityEvents;
 
@@ -83,11 +86,11 @@ static gboolean axObjectEventListener(GSignalInvocationHint *signalHint, guint n
 {
     // At least we should receive the instance emitting the signal.
     if (numParamValues < 1)
-        return TRUE;
+        return true;
 
     AtkObject* accessible = ATK_OBJECT(g_value_get_object(&paramValues[0]));
     if (!accessible || !ATK_IS_OBJECT(accessible))
-        return TRUE;
+        return true;
 
     GSignalQuery signalQuery;
     GOwnPtr<gchar> signalName;
@@ -103,16 +106,21 @@ static gboolean axObjectEventListener(GSignalInvocationHint *signalHint, guint n
             notificationName = "CheckedStateChanged";
         else if (!g_strcmp0(g_value_get_string(&paramValues[1]), "invalid-entry"))
             notificationName = "AXInvalidStatusChanged";
+        else if (!g_strcmp0(g_value_get_string(&paramValues[1]), "layout-complete"))
+            notificationName = "AXLayoutComplete";
     } else if (!g_strcmp0(signalQuery.signal_name, "focus-event")) {
         signalName.set(g_strdup("focus-event"));
         signalValue.set(g_strdup_printf("%d", g_value_get_boolean(&paramValues[1])));
-        notificationName = "AXFocusedUIElementChanged";
+        if (g_value_get_boolean(&paramValues[1]))
+            notificationName = "AXFocusedUIElementChanged";
     } else if (!g_strcmp0(signalQuery.signal_name, "children-changed")) {
         signalName.set(g_strdup("children-changed"));
         signalValue.set(g_strdup_printf("%d", g_value_get_uint(&paramValues[1])));
-    } else if (!g_strcmp0(signalQuery.signal_name, "property-change"))
+    } else if (!g_strcmp0(signalQuery.signal_name, "property-change")) {
         signalName.set(g_strdup_printf("property-change:%s", g_quark_to_string(signalHint->detail)));
-    else
+        if (!g_strcmp0(g_quark_to_string(signalHint->detail), "accessible-value"))
+            notificationName = "AXValueChanged";
+    } else
         signalName.set(g_strdup(signalQuery.signal_name));
 
     if (loggingAccessibilityEvents)
@@ -124,36 +132,34 @@ static gboolean axObjectEventListener(GSignalInvocationHint *signalHint, guint n
     JSContextRef jsContext = 0;
 #endif
     if (!jsContext)
-        return TRUE;
+        return true;
 
     if (notificationName.length()) {
-        for (HashMap<PlatformUIElement, AccessibilityNotificationHandler*>::iterator it = notificationHandlers.begin(); it != notificationHandlers.end(); ++it) {
-            if (it->key == accessible || it->key == GlobalNotificationKey) {
-                JSRetainPtr<JSStringRef> jsNotificationEventName(Adopt, JSStringCreateWithUTF8CString(reinterpret_cast<const char*>(notificationName.utf8().data())));
-                JSValueRef notificationNameArgument = JSValueMakeString(jsContext, jsNotificationEventName.get());
-                AccessibilityNotificationHandler* notificationHandler = it->value;
-                if (notificationHandler->platformElement()) {
-                    JSValueRef argument = notificationNameArgument;
-                    // Listener for one element just gets one argument, the notification name.
-                    JSObjectCallAsFunction(jsContext, notificationHandler->notificationFunctionCallback(), 0, 1, &argument, 0);
-                } else {
-                    // A global listener gets the element and the notification name as arguments.
-                    JSValueRef arguments[2];
-                    arguments[0] = AccessibilityUIElement::makeJSAccessibilityUIElement(jsContext, AccessibilityUIElement(accessible));
-                    arguments[1] = notificationNameArgument;
-                    JSObjectCallAsFunction(jsContext, notificationHandler->notificationFunctionCallback(), 0, 2, arguments, 0);
-                }
-            }
+        JSRetainPtr<JSStringRef> jsNotificationEventName(Adopt, JSStringCreateWithUTF8CString(notificationName.utf8().data()));
+        JSValueRef notificationNameArgument = JSValueMakeString(jsContext, jsNotificationEventName.get());
+        NotificationHandlersMap::iterator elementNotificationHandler = notificationHandlers.find(accessible);
+        if (elementNotificationHandler != notificationHandlers.end()) {
+            // Listener for one element just gets one argument, the notification name.
+            JSObjectCallAsFunction(jsContext, elementNotificationHandler->value->notificationFunctionCallback(), 0, 1, &notificationNameArgument, 0);
+        }
+
+        if (globalNotificationHandler) {
+            // A global listener gets the element and the notification name as arguments.
+            JSValueRef arguments[2];
+            arguments[0] = AccessibilityUIElement::makeJSAccessibilityUIElement(jsContext, AccessibilityUIElement(accessible));
+            arguments[1] = notificationNameArgument;
+            JSObjectCallAsFunction(jsContext, globalNotificationHandler->notificationFunctionCallback(), 0, 2, arguments, 0);
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 void connectAccessibilityCallbacks()
 {
     // Ensure no callbacks are connected before.
-    disconnectAccessibilityCallbacks();
+    if (!disconnectAccessibilityCallbacks())
+        return;
 
     // Ensure that accessibility is initialized for the WebView by querying for
     // the root accessible object, which will create the full hierarchy.
@@ -179,11 +185,11 @@ void connectAccessibilityCallbacks()
     g_object_unref(dummyAxObject);
 }
 
-void disconnectAccessibilityCallbacks()
+bool disconnectAccessibilityCallbacks()
 {
     // Only disconnect if logging is off and there is no notification handler.
-    if (loggingAccessibilityEvents || !notificationHandlers.isEmpty())
-        return;
+    if (loggingAccessibilityEvents || !notificationHandlers.isEmpty() || globalNotificationHandler)
+        return false;
 
     // AtkObject signals.
     if (stateChangeListenerId) {
@@ -210,6 +216,8 @@ void disconnectAccessibilityCallbacks()
         atk_remove_global_event_listener(visibleDataChangedListenerId);
         visibleDataChangedListenerId = 0;
     }
+
+    return true;
 }
 
 void addAccessibilityNotificationHandler(AccessibilityNotificationHandler* notificationHandler)
@@ -228,17 +236,17 @@ void addAccessibilityNotificationHandler(AccessibilityNotificationHandler* notif
     JSValueProtect(jsContext, notificationHandler->notificationFunctionCallback());
     // Check if this notification handler is related to a specific element.
     if (notificationHandler->platformElement()) {
-        if (notificationHandlers.contains(notificationHandler->platformElement())) {
-            JSValueUnprotect(jsContext, notificationHandlers.find(notificationHandler->platformElement())->value->notificationFunctionCallback());
-            notificationHandlers.remove(notificationHandler->platformElement());
+        NotificationHandlersMap::iterator currentNotificationHandler = notificationHandlers.find(notificationHandler->platformElement());
+        if (currentNotificationHandler != notificationHandlers.end()) {
+            ASSERT(currentNotificationHandler->value->platformElement());
+            JSValueUnprotect(jsContext, currentNotificationHandler->value->notificationFunctionCallback());
+            notificationHandlers.remove(currentNotificationHandler->value->platformElement());
         }
         notificationHandlers.add(notificationHandler->platformElement(), notificationHandler);
     } else {
-        if (notificationHandlers.contains(GlobalNotificationKey)) {
-            JSValueUnprotect(jsContext, notificationHandlers.find(GlobalNotificationKey)->value->notificationFunctionCallback());
-            notificationHandlers.remove(GlobalNotificationKey);
-        }
-        notificationHandlers.add(GlobalNotificationKey, notificationHandler);
+        if (globalNotificationHandler)
+            JSValueUnprotect(jsContext, globalNotificationHandler->notificationFunctionCallback());
+        globalNotificationHandler = notificationHandler;
     }
 
     connectAccessibilityCallbacks();
@@ -257,10 +265,14 @@ void removeAccessibilityNotificationHandler(AccessibilityNotificationHandler* no
     if (!jsContext)
         return;
 
-    for (HashMap<PlatformUIElement, AccessibilityNotificationHandler*>::iterator it = notificationHandlers.begin(); it != notificationHandlers.end(); ++it) {
-        if (it->value == notificationHandler) {
-            JSValueUnprotect(jsContext, notificationHandler->notificationFunctionCallback());
-            notificationHandlers.remove(it);
+    if (globalNotificationHandler == notificationHandler) {
+        JSValueUnprotect(jsContext, globalNotificationHandler->notificationFunctionCallback());
+        globalNotificationHandler = 0;
+    } else if (notificationHandler->platformElement()) {
+        NotificationHandlersMap::iterator removeNotificationHandler = notificationHandlers.find(notificationHandler->platformElement());
+        if (removeNotificationHandler != notificationHandlers.end()) {
+            JSValueUnprotect(jsContext, removeNotificationHandler->value->notificationFunctionCallback());
+            notificationHandlers.remove(removeNotificationHandler);
         }
     }
 }

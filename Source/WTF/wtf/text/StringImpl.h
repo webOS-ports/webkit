@@ -26,6 +26,7 @@
 #include <limits.h>
 #include <wtf/ASCIICType.h>
 #include <wtf/CompilationThread.h>
+#include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/Forward.h>
 #include <wtf/MathExtras.h>
 #include <wtf/StdLibExtras.h>
@@ -232,10 +233,10 @@ private:
     }
 
     // Create a StringImpl adopting ownership of the provided buffer (BufferOwned)
-    StringImpl(const LChar* characters, unsigned length)
+    StringImpl(MallocPtr<LChar> characters, unsigned length)
         : m_refCount(s_refCountIncrement)
         , m_length(length)
-        , m_data8(characters)
+        , m_data8(characters.leakPtr())
         , m_buffer(0)
         , m_hashAndFlags(s_hashFlag8BitBuffer | BufferOwned)
     {
@@ -273,10 +274,10 @@ private:
     }
 
     // Create a StringImpl adopting ownership of the provided buffer (BufferOwned)
-    StringImpl(const UChar* characters, unsigned length)
+    StringImpl(MallocPtr<UChar> characters, unsigned length)
         : m_refCount(s_refCountIncrement)
         , m_length(length)
-        , m_data16(characters)
+        , m_data16(characters.leakPtr())
         , m_buffer(0)
         , m_hashAndFlags(BufferOwned)
     {
@@ -331,7 +332,7 @@ private:
         // keys means that we don't need them to match any other string (in fact,
         // that's exactly the oposite of what we want!), and teh normal hash would
         // lead to lots of conflicts.
-        unsigned hash = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this));
+        unsigned hash = cryptographicallyRandomNumber() | 1;
         hash <<= s_flagCount;
         if (!hash)
             hash = 1 << s_flagCount;

@@ -85,14 +85,15 @@
 #import <WebCore/PlatformEventFactoryMac.h>
 #import <WebCore/PluginData.h>
 #import <WebCore/PrintContext.h>
-#import <WebCore/RenderPart.h>
 #import <WebCore/RenderView.h>
+#import <WebCore/RenderWidget.h>
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/ScriptController.h>
 #import <WebCore/ScriptValue.h>
 #import <WebCore/SecurityOrigin.h>
 #import <WebCore/SmartReplace.h>
 #import <WebCore/StylePropertySet.h>
+#import <WebCore/SubframeLoader.h>
 #import <WebCore/TextIterator.h>
 #import <WebCore/ThreadCheck.h>
 #import <WebCore/VisibleUnits.h>
@@ -561,7 +562,7 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 - (BOOL)_getVisibleRect:(NSRect*)rect
 {
     ASSERT_ARG(rect, rect);
-    if (RenderPart* ownerRenderer = _private->coreFrame->ownerRenderer()) {
+    if (RenderWidget* ownerRenderer = _private->coreFrame->ownerRenderer()) {
         if (ownerRenderer->needsLayout())
             return NO;
         *rect = ownerRenderer->pixelSnappedAbsoluteClippedOverflowRect();
@@ -807,7 +808,7 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 
     if (WebCore::DOMImplementation::isTextMIMEType(mimeType)
         || Image::supportsType(mimeType)
-        || (pluginData && pluginData->supportsMimeType(mimeType, PluginData::AllPlugins) && frame->loader().subframeLoader()->allowPlugins(NotAboutToInstantiatePlugin))
+        || (pluginData && pluginData->supportsMimeType(mimeType, PluginData::AllPlugins) && frame->loader().subframeLoader().allowPlugins(NotAboutToInstantiatePlugin))
         || (pluginData && pluginData->supportsMimeType(mimeType, PluginData::OnlyApplicationPlugins)))
         return NO;
 
@@ -931,6 +932,46 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 }
 #endif
 
+#if ENABLE(IOS_TEXT_AUTOSIZING)
+- (void)resetTextAutosizingBeforeLayout
+{
+    id documentView = [_private->webFrameView documentView];    
+    if (![documentView isKindOfClass:[WebHTMLView class]])
+        return;
+    
+    Frame* coreFrame = core(self);
+    for (Frame* frame = coreFrame; frame; frame = frame->tree()->traverseNext(coreFrame)) {
+        Document *doc = frame->document();
+        if (!doc || !doc->renderer())
+            continue;
+        doc->renderer()->resetTextAutosizing();
+    }
+}
+
+- (void)_setVisibleSize:(CGSize)size
+{
+    [self _setTextAutosizingWidth:size.width];
+}
+
+- (void)_setTextAutosizingWidth:(CGFloat)width
+{
+    WebCore::Frame *frame = core(self);
+    frame->setTextAutosizingWidth(width);
+}
+#else
+- (void)resetTextAutosizingBeforeLayout
+{
+}
+
+- (void)_setVisibleSize:(CGSize)size
+{
+}
+
+- (void)_setTextAutosizingWidth:(CGFloat)width
+{
+}
+#endif // ENABLE(IOS_TEXT_AUTOSIZING)
+
 - (void)_replaceSelectionWithFragment:(DOMDocumentFragment *)fragment selectReplacement:(BOOL)selectReplacement smartReplace:(BOOL)smartReplace matchStyle:(BOOL)matchStyle
 {
     if (_private->coreFrame->selection().isNone() || !fragment)
@@ -1017,7 +1058,7 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     if (documentLoader && !documentLoader->mainDocumentError().isNull())
         [result setObject:(NSError *)documentLoader->mainDocumentError() forKey:WebFrameMainDocumentError];
         
-    if (frameLoader.subframeLoader()->containsPlugins())
+    if (frameLoader.subframeLoader().containsPlugins())
         [result setObject:[NSNumber numberWithBool:YES] forKey:WebFrameHasPlugins];
     
     if (DOMWindow* domWindow = _private->coreFrame->document()->domWindow()) {

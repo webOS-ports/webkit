@@ -53,10 +53,9 @@ void JSArrayBufferConstructor::finishCreation(VM& vm, JSArrayBufferPrototype* pr
     putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(1), DontEnum | DontDelete | ReadOnly);
 }
 
-JSArrayBufferConstructor* JSArrayBufferConstructor::create(
-    JSGlobalObject* globalObject, Structure* structure, JSArrayBufferPrototype* prototype)
+JSArrayBufferConstructor* JSArrayBufferConstructor::create(CallFrame* callFrame, JSGlobalObject* globalObject, Structure* structure, JSArrayBufferPrototype* prototype)
 {
-    VM& vm = globalObject->vm();
+    VM& vm = callFrame->vm();
     JSArrayBufferConstructor* result =
         new (NotNull, allocateCell<JSArrayBufferConstructor>(vm.heap))
         JSArrayBufferConstructor(globalObject, structure);
@@ -78,7 +77,7 @@ static EncodedJSValue JSC_HOST_CALL constructArrayBuffer(ExecState* exec)
     
     unsigned length;
     if (exec->argumentCount()) {
-        length = exec->argument(0).toUInt32(exec);
+        length = exec->uncheckedArgument(0).toUInt32(exec);
         if (exec->hadException())
             return JSValue::encode(jsUndefined());
     } else {

@@ -44,7 +44,7 @@ static EncodedJSValue JSC_HOST_CALL arrayConstructorIsArray(ExecState*);
 
 namespace JSC {
 
-ASSERT_HAS_TRIVIAL_DESTRUCTOR(ArrayConstructor);
+STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(ArrayConstructor);
 
 const ClassInfo ArrayConstructor::s_info = { "Function", &InternalFunction::s_info, 0, ExecState::arrayConstructorTable, CREATE_METHOD_TABLE(ArrayConstructor) };
 
@@ -76,7 +76,7 @@ bool ArrayConstructor::getOwnPropertySlot(JSObject* object, ExecState* exec, Pro
 JSObject* constructArrayWithSizeQuirk(ExecState* exec, ArrayAllocationProfile* profile, JSGlobalObject* globalObject, JSValue length)
 {
     if (!length.isNumber())
-        return constructArray(exec, profile, globalObject, &length, 1);
+        return constructArrayNegativeIndexed(exec, profile, globalObject, &length, 1);
     
     uint32_t n = length.toUInt32(exec);
     if (n != length.toNumber(exec))

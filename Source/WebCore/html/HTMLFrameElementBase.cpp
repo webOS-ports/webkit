@@ -35,16 +35,16 @@
 #include "HTMLParserIdioms.h"
 #include "KURL.h"
 #include "Page.h"
-#include "RenderPart.h"
+#include "RenderWidget.h"
 #include "ScriptController.h"
-#include "ScriptEventListener.h"
 #include "Settings.h"
+#include "SubframeLoader.h"
 
 namespace WebCore {
 
 using namespace HTMLNames;
 
-HTMLFrameElementBase::HTMLFrameElementBase(const QualifiedName& tagName, Document* document)
+HTMLFrameElementBase::HTMLFrameElementBase(const QualifiedName& tagName, Document& document)
     : HTMLFrameOwnerElement(tagName, document)
     , m_scrolling(ScrollbarAuto)
     , m_marginWidth(-1)
@@ -86,7 +86,7 @@ void HTMLFrameElementBase::openURL(bool lockHistory, bool lockBackForwardList)
     if (!parentFrame)
         return;
 
-    parentFrame->loader().subframeLoader()->requestFrame(this, m_URL, m_frameName, lockHistory, lockBackForwardList);
+    parentFrame->loader().subframeLoader().requestFrame(this, m_URL, m_frameName, lockHistory, lockBackForwardList);
     if (contentFrame())
         contentFrame()->setInViewSourceMode(viewSourceMode());
 }
@@ -126,10 +126,10 @@ void HTMLFrameElementBase::parseAttribute(const QualifiedName& name, const Atomi
             contentFrame()->setInViewSourceMode(viewSourceMode());
 #endif
     } else if (name == onbeforeloadAttr)
-        setAttributeEventListener(eventNames().beforeloadEvent, createAttributeEventListener(this, name, value));
+        setAttributeEventListener(eventNames().beforeloadEvent, name, value);
     else if (name == onbeforeunloadAttr) {
         // FIXME: should <frame> elements have beforeunload handlers?
-        setAttributeEventListener(eventNames().beforeunloadEvent, createAttributeEventListener(this, name, value));
+        setAttributeEventListener(eventNames().beforeunloadEvent, name, value);
     } else
         HTMLFrameOwnerElement::parseAttribute(name, value);
 }
@@ -159,7 +159,7 @@ void HTMLFrameElementBase::didNotifySubtreeInsertions(ContainerNode*)
     if (!document().frame())
         return;
 
-    if (!SubframeLoadingDisabler::canLoadFrame(this))
+    if (!SubframeLoadingDisabler::canLoadFrame(*this))
         return;
 
     // JavaScript in src=javascript: and beforeonload can access the renderer
@@ -175,7 +175,7 @@ void HTMLFrameElementBase::didNotifySubtreeInsertions(ContainerNode*)
 
 void HTMLFrameElementBase::didAttachRenderers()
 {
-    if (RenderPart* part = renderPart()) {
+    if (RenderWidget* part = renderWidget()) {
         if (Frame* frame = contentFrame())
             part->setWidget(frame->view());
     }

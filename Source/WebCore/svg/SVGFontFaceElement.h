@@ -24,7 +24,6 @@
 
 #if ENABLE(SVG_FONTS)
 #include "SVGElement.h"
-#include "SVGNames.h"
 
 namespace WebCore {
 
@@ -33,7 +32,7 @@ class StyleRuleFontFace;
 
 class SVGFontFaceElement FINAL : public SVGElement {
 public:
-    static PassRefPtr<SVGFontFaceElement> create(const QualifiedName&, Document*);
+    static PassRefPtr<SVGFontFaceElement> create(const QualifiedName&, Document&);
 
     unsigned unitsPerEm() const;
     int xHeight() const;
@@ -53,7 +52,7 @@ public:
     StyleRuleFontFace* fontFaceRule() const { return m_fontFaceRule.get(); }
 
 private:
-    SVGFontFaceElement(const QualifiedName&, Document*);
+    SVGFontFaceElement(const QualifiedName&, Document&);
 
     virtual void parseAttribute(const QualifiedName&, const AtomicString&) OVERRIDE;
 
@@ -67,11 +66,7 @@ private:
     SVGFontElement* m_fontElement;
 };
 
-inline SVGFontFaceElement* toSVGFontFaceElement(Node* node)
-{
-    ASSERT_WITH_SECURITY_IMPLICATION(!node || isSVGFontFaceElement(node));
-    return static_cast<SVGFontFaceElement*>(node);
-}
+ELEMENT_TYPE_CASTS(SVGFontFaceElement)
 
 } // namespace WebCore
 

@@ -354,6 +354,9 @@ static const CSSPropertyID computedProperties[] = {
     CSSPropertyWebkitTextFillColor,
     CSSPropertyWebkitTextOrientation,
     CSSPropertyWebkitTextSecurity,
+#if ENABLE(IOS_TEXT_AUTOSIZING)
+    CSSPropertyWebkitTextSizeAdjust,
+#endif
     CSSPropertyWebkitTextStrokeColor,
     CSSPropertyWebkitTextStrokeWidth,
     CSSPropertyWebkitTransform,
@@ -700,7 +703,7 @@ PassRefPtr<CSSPrimitiveValue> ComputedStyleExtractor::currentColorOrValidColor(R
     return cssValuePool().createColorValue(color.rgb());
 }
 
-static PassRefPtr<CSSValueList> getBorderRadiusCornerValues(LengthSize radius, const RenderStyle* style, RenderView* renderView)
+static PassRefPtr<CSSValueList> getBorderRadiusCornerValues(const LengthSize& radius, const RenderStyle* style, RenderView* renderView)
 {
     RefPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
     if (radius.width().type() == Percent)
@@ -714,7 +717,7 @@ static PassRefPtr<CSSValueList> getBorderRadiusCornerValues(LengthSize radius, c
     return list.release();
 }
 
-static PassRefPtr<CSSValue> getBorderRadiusCornerValue(LengthSize radius, const RenderStyle* style, RenderView* renderView)
+static PassRefPtr<CSSValue> getBorderRadiusCornerValue(const LengthSize& radius, const RenderStyle* style, RenderView* renderView)
 {
     if (radius.width() == radius.height()) {
         if (radius.width().type() == Percent)
@@ -1165,17 +1168,18 @@ static PassRefPtr<CSSValue> valueForGridPosition(const GridPosition& position)
     return list.release();
 }
 
-static PassRefPtr<CSSValue> createTransitionPropertyValue(const Animation* animation)
+static PassRefPtr<CSSValue> createTransitionPropertyValue(const Animation& animation)
 {
     RefPtr<CSSValue> propertyValue;
-    if (animation->animationMode() == Animation::AnimateNone)
+    if (animation.animationMode() == Animation::AnimateNone)
         propertyValue = cssValuePool().createIdentifierValue(CSSValueNone);
-    else if (animation->animationMode() == Animation::AnimateAll)
+    else if (animation.animationMode() == Animation::AnimateAll)
         propertyValue = cssValuePool().createIdentifierValue(CSSValueAll);
     else
-        propertyValue = cssValuePool().createValue(getPropertyNameString(animation->property()), CSSPrimitiveValue::CSS_STRING);
+        propertyValue = cssValuePool().createValue(getPropertyNameString(animation.property()), CSSPrimitiveValue::CSS_STRING);
     return propertyValue.release();
 }
+
 static PassRefPtr<CSSValue> getTransitionPropertyValue(const AnimationList* animList)
 {
     RefPtr<CSSValueList> list = CSSValueList::createCommaSeparated();
@@ -1192,7 +1196,7 @@ static PassRefPtr<CSSValue> getDelayValue(const AnimationList* animList)
     RefPtr<CSSValueList> list = CSSValueList::createCommaSeparated();
     if (animList) {
         for (size_t i = 0; i < animList->size(); ++i)
-            list->append(cssValuePool().createValue(animList->animation(i)->delay(), CSSPrimitiveValue::CSS_S));
+            list->append(cssValuePool().createValue(animList->animation(i).delay(), CSSPrimitiveValue::CSS_S));
     } else {
         // Note that initialAnimationDelay() is used for both transitions and animations
         list->append(cssValuePool().createValue(Animation::initialAnimationDelay(), CSSPrimitiveValue::CSS_S));
@@ -1205,7 +1209,7 @@ static PassRefPtr<CSSValue> getDurationValue(const AnimationList* animList)
     RefPtr<CSSValueList> list = CSSValueList::createCommaSeparated();
     if (animList) {
         for (size_t i = 0; i < animList->size(); ++i)
-            list->append(cssValuePool().createValue(animList->animation(i)->duration(), CSSPrimitiveValue::CSS_S));
+            list->append(cssValuePool().createValue(animList->animation(i).duration(), CSSPrimitiveValue::CSS_S));
     } else {
         // Note that initialAnimationDuration() is used for both transitions and animations
         list->append(cssValuePool().createValue(Animation::initialAnimationDuration(), CSSPrimitiveValue::CSS_S));
@@ -1215,7 +1219,8 @@ static PassRefPtr<CSSValue> getDurationValue(const AnimationList* animList)
 
 static PassRefPtr<CSSValue> createTimingFunctionValue(const TimingFunction* timingFunction)
 {
-    if (timingFunction->isCubicBezierTimingFunction()) {
+    switch (timingFunction->type()) {
+    case TimingFunction::CubicBezierFunction: {
         const CubicBezierTimingFunction* bezierTimingFunction = static_cast<const CubicBezierTimingFunction*>(timingFunction);
         if (bezierTimingFunction->timingFunctionPreset() != CubicBezierTimingFunction::Custom) {
             CSSValueID valueId = CSSValueInvalid;
@@ -1240,13 +1245,15 @@ static PassRefPtr<CSSValue> createTimingFunctionValue(const TimingFunction* timi
         }
         return CSSCubicBezierTimingFunctionValue::create(bezierTimingFunction->x1(), bezierTimingFunction->y1(), bezierTimingFunction->x2(), bezierTimingFunction->y2());
     }
-
-    if (timingFunction->isStepsTimingFunction()) {
+    case TimingFunction::StepsFunction: {
         const StepsTimingFunction* stepsTimingFunction = static_cast<const StepsTimingFunction*>(timingFunction);
         return CSSStepsTimingFunctionValue::create(stepsTimingFunction->numberOfSteps(), stepsTimingFunction->stepAtStart());
     }
-
-    return CSSLinearTimingFunctionValue::create();
+    case TimingFunction::LinearFunction:
+        return cssValuePool().createIdentifierValue(CSSValueLinear);
+    }
+    ASSERT_NOT_REACHED();
+    return 0;
 }
 
 static PassRefPtr<CSSValue> getTimingFunctionValue(const AnimationList* animList)
@@ -1254,7 +1261,7 @@ static PassRefPtr<CSSValue> getTimingFunctionValue(const AnimationList* animList
     RefPtr<CSSValueList> list = CSSValueList::createCommaSeparated();
     if (animList) {
         for (size_t i = 0; i < animList->size(); ++i)
-            list->append(createTimingFunctionValue(animList->animation(i)->timingFunction().get()));
+            list->append(createTimingFunctionValue(animList->animation(i).timingFunction().get()));
     } else
         // Note that initialAnimationTimingFunction() is used for both transitions and animations
         list->append(createTimingFunctionValue(Animation::initialAnimationTimingFunction().get()));
@@ -1579,7 +1586,7 @@ static PassRefPtr<CSSPrimitiveValue> fontWeightFromStyle(RenderStyle* style)
     return cssValuePool().createIdentifierValue(CSSValueNormal);
 }
 
-typedef Length (RenderStyle::*RenderStyleLengthGetter)() const;
+typedef const Length& (RenderStyle::*RenderStyleLengthGetter)() const;
 typedef LayoutUnit (RenderBoxModelObject::*RenderBoxComputedCSSValueGetter)() const;
 
 template<RenderStyleLengthGetter lengthGetter, RenderBoxComputedCSSValueGetter computedCSSValueGetter>
@@ -1704,7 +1711,7 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
         return 0;
 
     RefPtr<RenderStyle> style;
-    RenderObject* renderer;
+    RenderObject* renderer = 0;
     bool forceFullLayout = false;
     if (updateLayout) {
         Document& document = styledNode->document();
@@ -2385,6 +2392,14 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
             return cssValuePool().createIdentifierValue(CSSValueClip);
         case CSSPropertyWebkitTextSecurity:
             return cssValuePool().createValue(style->textSecurity());
+#if ENABLE(IOS_TEXT_AUTOSIZING)
+        case CSSPropertyWebkitTextSizeAdjust:
+            if (style->textSizeAdjust().isAuto())
+                return cssValuePool().createIdentifierValue(CSSValueAuto);
+            if (style->textSizeAdjust().isNone())
+                return cssValuePool().createIdentifierValue(CSSValueNone);
+            return CSSPrimitiveValue::create(style->textSizeAdjust().percentage(), CSSPrimitiveValue::CSS_PERCENTAGE);
+#endif
         case CSSPropertyWebkitTextStrokeColor:
             return currentColorOrValidColor(style.get(), style->textStrokeColor());
         case CSSPropertyWebkitTextStrokeWidth:
@@ -2523,7 +2538,7 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
             const AnimationList* t = style->animations();
             if (t) {
                 for (size_t i = 0; i < t->size(); ++i) {
-                    if (t->animation(i)->direction())
+                    if (t->animation(i).direction())
                         list->append(cssValuePool().createIdentifierValue(CSSValueAlternate));
                     else
                         list->append(cssValuePool().createIdentifierValue(CSSValueNormal));
@@ -2539,7 +2554,7 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
             const AnimationList* t = style->animations();
             if (t) {
                 for (size_t i = 0; i < t->size(); ++i) {
-                    switch (t->animation(i)->fillMode()) {
+                    switch (t->animation(i).fillMode()) {
                     case AnimationFillModeNone:
                         list->append(cssValuePool().createIdentifierValue(CSSValueNone));
                         break;
@@ -2563,7 +2578,7 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
             const AnimationList* t = style->animations();
             if (t) {
                 for (size_t i = 0; i < t->size(); ++i) {
-                    double iterationCount = t->animation(i)->iterationCount();
+                    double iterationCount = t->animation(i).iterationCount();
                     if (iterationCount == Animation::IterationCountInfinite)
                         list->append(cssValuePool().createIdentifierValue(CSSValueInfinite));
                     else
@@ -2578,7 +2593,7 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
             const AnimationList* t = style->animations();
             if (t) {
                 for (size_t i = 0; i < t->size(); ++i)
-                    list->append(cssValuePool().createValue(t->animation(i)->name(), CSSPrimitiveValue::CSS_STRING));
+                    list->append(cssValuePool().createValue(t->animation(i).name(), CSSPrimitiveValue::CSS_STRING));
             } else
                 list->append(cssValuePool().createIdentifierValue(CSSValueNone));
             return list.release();
@@ -2588,7 +2603,7 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
             const AnimationList* t = style->animations();
             if (t) {
                 for (size_t i = 0; i < t->size(); ++i) {
-                    int prop = t->animation(i)->playState();
+                    int prop = t->animation(i).playState();
                     if (prop == AnimPlayStatePlaying)
                         list->append(cssValuePool().createIdentifierValue(CSSValueRunning));
                     else
@@ -2742,11 +2757,11 @@ PassRefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propert
                 RefPtr<CSSValueList> transitionsList = CSSValueList::createCommaSeparated();
                 for (size_t i = 0; i < animList->size(); ++i) {
                     RefPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
-                    const Animation* animation = animList->animation(i);
+                    const Animation& animation = animList->animation(i);
                     list->append(createTransitionPropertyValue(animation));
-                    list->append(cssValuePool().createValue(animation->duration(), CSSPrimitiveValue::CSS_S));
-                    list->append(createTimingFunctionValue(animation->timingFunction().get()));
-                    list->append(cssValuePool().createValue(animation->delay(), CSSPrimitiveValue::CSS_S));
+                    list->append(cssValuePool().createValue(animation.duration(), CSSPrimitiveValue::CSS_S));
+                    list->append(createTimingFunctionValue(animation.timingFunction().get()));
+                    list->append(cssValuePool().createValue(animation.delay(), CSSPrimitiveValue::CSS_S));
                     transitionsList->append(list);
                 }
                 return transitionsList.release();

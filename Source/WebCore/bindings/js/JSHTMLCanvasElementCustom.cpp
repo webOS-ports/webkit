@@ -99,12 +99,12 @@ JSValue JSHTMLCanvasElement::getContext(ExecState* exec)
     return jsValue;
 }
 
-JSValue JSHTMLCanvasElement::supportsContext(ExecState* exec)
+JSValue JSHTMLCanvasElement::probablySupportsContext(ExecState* exec)
 {
     HTMLCanvasElement* canvas = static_cast<HTMLCanvasElement*>(impl());
     if (!exec->argumentCount())
         return jsBoolean(false);
-    const String& contextId = exec->argument(0).toString(exec)->value(exec);
+    const String& contextId = exec->uncheckedArgument(0).toString(exec)->value(exec);
     if (exec->hadException())
         return jsUndefined();
     
@@ -117,7 +117,7 @@ JSValue JSHTMLCanvasElement::supportsContext(ExecState* exec)
     }
 #endif
     
-    return jsBoolean(canvas->supportsContext(contextId, attrs.get()));
+    return jsBoolean(canvas->probablySupportsContext(contextId, attrs.get()));
 }
 
 JSValue JSHTMLCanvasElement::toDataURL(ExecState* exec)
@@ -129,7 +129,7 @@ JSValue JSHTMLCanvasElement::toDataURL(ExecState* exec)
     double quality;
     double* qualityPtr = 0;
     if (exec->argumentCount() > 1) {
-        JSValue v = exec->argument(1);
+        JSValue v = exec->uncheckedArgument(1);
         if (v.isNumber()) {
             quality = v.toNumber(exec);
             qualityPtr = &quality;

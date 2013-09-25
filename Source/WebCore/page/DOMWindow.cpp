@@ -138,7 +138,7 @@ public:
     PassRefPtr<MessageEvent> event(ScriptExecutionContext* context)
     {
         OwnPtr<MessagePortArray> messagePorts = MessagePort::entanglePorts(*context, m_channels.release());
-        return MessageEvent::create(messagePorts.release(), m_message, m_origin, "", m_source);
+        return MessageEvent::create(messagePorts.release(), m_message, m_origin, String(), m_source);
     }
     SecurityOrigin* targetOrigin() const { return m_targetOrigin.get(); }
     ScriptCallStack* stackTrace() const { return m_stackTrace.get(); }
@@ -232,25 +232,24 @@ bool DOMWindow::dispatchAllPendingBeforeUnloadEvents()
     if (alreadyDispatched)
         return true;
 
-    Vector<RefPtr<DOMWindow> > windows;
-    DOMWindowSet::iterator end = set.end();
-    for (DOMWindowSet::iterator it = set.begin(); it != end; ++it)
-        windows.append(it->key);
+    Vector<Ref<DOMWindow>> windows;
+    windows.reserveInitialCapacity(set.size());
+    for (auto it = set.begin(), end = set.end(); it != end; ++it)
+        windows.uncheckedAppend(*it->key);
 
-    size_t size = windows.size();
-    for (size_t i = 0; i < size; ++i) {
-        DOMWindow* window = windows[i].get();
-        if (!set.contains(window))
+    for (unsigned i = 0; i < windows.size(); ++i) {
+        DOMWindow& window = windows[i].get();
+        if (!set.contains(&window))
             continue;
 
-        Frame* frame = window->frame();
+        Frame* frame = window.frame();
         if (!frame)
             continue;
 
         if (!frame->loader().shouldClose())
             return false;
 
-        window->enableSuddenTermination();
+        window.enableSuddenTermination();
     }
 
     alreadyDispatched = true;
@@ -273,21 +272,20 @@ void DOMWindow::dispatchAllPendingUnloadEvents()
     if (alreadyDispatched)
         return;
 
-    Vector<RefPtr<DOMWindow> > windows;
-    DOMWindowSet::iterator end = set.end();
-    for (DOMWindowSet::iterator it = set.begin(); it != end; ++it)
-        windows.append(it->key);
+    Vector<Ref<DOMWindow>> windows;
+    windows.reserveInitialCapacity(set.size());
+    for (auto it = set.begin(), end = set.end(); it != end; ++it)
+        windows.uncheckedAppend(*it->key);
 
-    size_t size = windows.size();
-    for (size_t i = 0; i < size; ++i) {
-        DOMWindow* window = windows[i].get();
-        if (!set.contains(window))
+    for (unsigned i = 0; i < windows.size(); ++i) {
+        DOMWindow& window = windows[i].get();
+        if (!set.contains(&window))
             continue;
 
-        window->dispatchEvent(PageTransitionEvent::create(eventNames().pagehideEvent, false), window->document());
-        window->dispatchEvent(Event::create(eventNames().unloadEvent, false, false), window->document());
+        window.dispatchEvent(PageTransitionEvent::create(eventNames().pagehideEvent, false), window.document());
+        window.dispatchEvent(Event::create(eventNames().unloadEvent, false, false), window.document());
 
-        window->enableSuddenTermination();
+        window.enableSuddenTermination();
     }
 
     alreadyDispatched = true;
@@ -426,9 +424,9 @@ DOMWindow::~DOMWindow()
     removeAllBeforeUnloadEventListeners(this);
 }
 
-const AtomicString& DOMWindow::interfaceName() const
+EventTargetInterface DOMWindow::eventTargetInterface() const
 {
-    return eventNames().interfaceForDOMWindow;
+    return DOMWindowEventTargetInterfaceType;
 }
 
 ScriptExecutionContext* DOMWindow::scriptExecutionContext() const
@@ -974,8 +972,10 @@ void DOMWindow::close(ScriptExecutionContext* context)
 
     bool allowScriptsToCloseWindows = m_frame->settings().allowScriptsToCloseWindows();
 
-    if (!(page->openedByDOM() || page->backForward()->count() <= 1 || allowScriptsToCloseWindows))
+    if (!(page->openedByDOM() || page->backForward().count() <= 1 || allowScriptsToCloseWindows)) {
+        pageConsole()->addMessage(JSMessageSource, WarningMessageLevel, ASCIILiteral("Can't close the window since it was not opened by JavaScript"));
         return;
+    }
 
     if (!m_frame->loader().shouldClose())
         return;
@@ -1331,7 +1331,7 @@ DOMWindow* DOMWindow::top() const
     if (!page)
         return 0;
 
-    return m_frame->tree().top()->document()->domWindow();
+    return m_frame->tree().top().document()->domWindow();
 }
 
 Document* DOMWindow::document() const
@@ -1949,7 +1949,7 @@ PassRefPtr<DOMWindow> DOMWindow::open(const String& urlString, const AtomicStrin
     // In those cases, we schedule a location change right now and return early.
     Frame* targetFrame = 0;
     if (frameName == "_top")
-        targetFrame = m_frame->tree().top();
+        targetFrame = &m_frame->tree().top();
     else if (frameName == "_parent") {
         if (Frame* parent = m_frame->tree().parent())
             targetFrame = parent;

@@ -72,10 +72,9 @@
 #include "UnconditionalFinalizer.h"
 #include "ValueProfile.h"
 #include "Watchpoint.h"
-#include <wtf/RefCountedArray.h>
-#include <wtf/FastAllocBase.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/PassOwnPtr.h>
-#include <wtf/Platform.h>
+#include <wtf/RefCountedArray.h>
 #include <wtf/RefPtr.h>
 #include <wtf/SegmentedVector.h>
 #include <wtf/Vector.h>
@@ -87,7 +86,7 @@ class ExecState;
 class LLIntOffsetsExtractor;
 class RepatchBuffer;
 
-inline int unmodifiedArgumentsRegister(int argumentsRegister) { return argumentsRegister - 1; }
+inline int unmodifiedArgumentsRegister(int argumentsRegister) { return argumentsRegister + 1; }
 
 static ALWAYS_INLINE int missingThisObjectMarker() { return std::numeric_limits<int>::max(); }
 
@@ -195,30 +194,14 @@ public:
 
     CallLinkInfo& getCallLinkInfo(unsigned bytecodeIndex)
     {
-        ASSERT(JITCode::isBaselineCode(jitType()));
+        ASSERT(!JITCode::isOptimizingJIT(jitType()));
         return *(binarySearch<CallLinkInfo, unsigned>(m_callLinkInfos, m_callLinkInfos.size(), bytecodeIndex, getCallLinkInfoBytecodeIndex));
     }
 #endif // ENABLE(JIT)
 
-    unsigned bytecodeOffset(ExecState*, ReturnAddressPtr);
-
     void unlinkIncomingCalls();
 
 #if ENABLE(JIT)
-    unsigned bytecodeOffsetForCallAtIndex(unsigned index)
-    {
-        if (!m_rareData)
-            return 1;
-        Vector<CallReturnOffsetToBytecodeOffset, 0, UnsafeVectorOverflow>& callIndices = m_rareData->m_callReturnIndexVector;
-        if (!callIndices.size())
-            return 1;
-        // FIXME: Fix places in DFG that call out to C that don't set the CodeOrigin. https://bugs.webkit.org/show_bug.cgi?id=118315
-        ASSERT(index < m_rareData->m_callReturnIndexVector.size());
-        if (index >= m_rareData->m_callReturnIndexVector.size())
-            return 1;
-        return m_rareData->m_callReturnIndexVector[index].bytecodeOffset;
-    }
-
     void unlinkCalls();
         
     void linkIncomingCall(ExecState* callerFrame, CallLinkInfo*);
@@ -233,7 +216,6 @@ public:
     void linkIncomingCall(ExecState* callerFrame, LLIntCallLinkInfo*);
 #endif // ENABLE(LLINT)
 
-#if ENABLE(DFG_JIT) || ENABLE(LLINT)
     void setJITCodeMap(PassOwnPtr<CompactJITCodeMap> jitCodeMap)
     {
         m_jitCodeMap = jitCodeMap;
@@ -242,7 +224,6 @@ public:
     {
         return m_jitCodeMap.get();
     }
-#endif
     
     unsigned bytecodeOffset(Instruction* returnAddress)
     {
@@ -325,7 +306,7 @@ public:
 
     void setArgumentsRegister(int argumentsRegister)
     {
-        ASSERT(argumentsRegister != -1);
+        ASSERT(argumentsRegister != (int)InvalidVirtualRegister);
         m_argumentsRegister = argumentsRegister;
         ASSERT(usesArguments());
     }
@@ -355,7 +336,7 @@ public:
             return InvalidVirtualRegister;
         return activationRegister();
     }
-    bool usesArguments() const { return m_argumentsRegister != -1; }
+    bool usesArguments() const { return m_argumentsRegister != (int)InvalidVirtualRegister; }
 
     bool needsActivation() const
     {
@@ -368,7 +349,7 @@ public:
             return operandToArgument(operand) && usesArguments();
 
         if (inlineCallFrame)
-            return inlineCallFrame->capturedVars.get(operand);
+            return inlineCallFrame->capturedVars.get(operandToLocal(operand));
 
         // The activation object isn't in the captured region, but it's "captured"
         // in the sense that stores to its location can be observed indirectly.
@@ -387,8 +368,8 @@ public:
         if (!symbolTable())
             return false;
 
-        return operand >= symbolTable()->captureStart()
-        && operand < symbolTable()->captureEnd();
+        return operand <= symbolTable()->captureStart()
+            && operand > symbolTable()->captureEnd();
     }
 
     CodeType codeType() const { return m_unlinkedCode->codeType(); }
@@ -583,14 +564,6 @@ public:
     HandlerInfo& exceptionHandler(int index) { RELEASE_ASSERT(m_rareData); return m_rareData->m_exceptionHandlers[index]; }
 
     bool hasExpressionInfo() { return m_unlinkedCode->hasExpressionInfo(); }
-
-#if ENABLE(JIT)
-    Vector<CallReturnOffsetToBytecodeOffset, 0, UnsafeVectorOverflow>& callReturnIndexVector()
-    {
-        createRareDataIfNecessary();
-        return m_rareData->m_callReturnIndexVector;
-    }
-#endif
 
 #if ENABLE(DFG_JIT)
     SegmentedVector<InlineCallFrame, 4>& inlineCallFrames()
@@ -913,14 +886,14 @@ public:
 
 #if ENABLE(VALUE_PROFILER)
     bool shouldOptimizeNow();
-    void updateAllValueProfilePredictions(OperationInProgress = NoOperation);
+    void updateAllValueProfilePredictions(HeapOperation = NoOperation);
     void updateAllArrayPredictions();
-    void updateAllPredictions(OperationInProgress = NoOperation);
+    void updateAllPredictions(HeapOperation = NoOperation);
 #else
     bool updateAllPredictionsAndCheckIfShouldOptimizeNow() { return false; }
-    void updateAllValueProfilePredictions(OperationInProgress = NoOperation) { }
+    void updateAllValueProfilePredictions(HeapOperation = NoOperation) { }
     void updateAllArrayPredictions() { }
-    void updateAllPredictions(OperationInProgress = NoOperation) { }
+    void updateAllPredictions(HeapOperation = NoOperation) { }
 #endif
 
 #if ENABLE(JIT)
@@ -984,7 +957,7 @@ private:
 #endif
         
 #if ENABLE(VALUE_PROFILER)
-    void updateAllPredictionsAndCountLiveness(OperationInProgress, unsigned& numberOfLiveNonArgumentValueProfiles, unsigned& numberOfSamplesInProfiles);
+    void updateAllPredictionsAndCountLiveness(HeapOperation, unsigned& numberOfLiveNonArgumentValueProfiles, unsigned& numberOfSamplesInProfiles);
 #endif
 
     void setConstantRegisters(const Vector<WriteBarrier<Unknown> >& constants)
@@ -1006,6 +979,17 @@ private:
     enum CacheDumpMode { DumpCaches, DontDumpCaches };
     void printCallOp(PrintStream&, ExecState*, int location, const Instruction*&, const char* op, CacheDumpMode, bool& hasPrintedProfiling);
     void printPutByIdOp(PrintStream&, ExecState*, int location, const Instruction*&, const char* op);
+    void printLocationAndOp(PrintStream& out, ExecState*, int location, const Instruction*&, const char* op)
+    {
+        out.printf("[%4d] %-17s ", location, op);
+    }
+
+    void printLocationOpAndRegisterOperand(PrintStream& out, ExecState* exec, int location, const Instruction*& it, const char* op, int operand)
+    {
+        printLocationAndOp(out, exec, location, it, op);
+        out.printf("%s", registerName(operand).data());
+    }
+
     void beginDumpProfiling(PrintStream&, bool& hasPrintedProfiling);
     void dumpValueProfiling(PrintStream&, const Instruction*&, bool& hasPrintedProfiling);
     void dumpArrayProfiling(PrintStream&, const Instruction*&, bool& hasPrintedProfiling);
@@ -1085,9 +1069,7 @@ private:
     Vector<CallLinkInfo> m_callLinkInfos;
     SentinelLinkedList<CallLinkInfo, BasicRawSentinelNode<CallLinkInfo> > m_incomingCalls;
 #endif
-#if ENABLE(DFG_JIT) || ENABLE(LLINT)
     OwnPtr<CompactJITCodeMap> m_jitCodeMap;
-#endif
 #if ENABLE(DFG_JIT)
     // This is relevant to non-DFG code blocks that serve as the profiled code block
     // for DFG code blocks.
@@ -1139,9 +1121,6 @@ private:
 
         EvalCodeCache m_evalCodeCache;
 
-#if ENABLE(JIT)
-        Vector<CallReturnOffsetToBytecodeOffset, 0, UnsafeVectorOverflow> m_callReturnIndexVector;
-#endif
 #if ENABLE(DFG_JIT)
         SegmentedVector<InlineCallFrame, 4> m_inlineCallFrames;
         Vector<CodeOrigin, 0, UnsafeVectorOverflow> m_codeOrigins;

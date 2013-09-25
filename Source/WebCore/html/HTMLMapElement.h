@@ -32,8 +32,8 @@ class HTMLImageElement;
     
 class HTMLMapElement FINAL : public HTMLElement {
 public:
-    static PassRefPtr<HTMLMapElement> create(Document*);
-    static PassRefPtr<HTMLMapElement> create(const QualifiedName&, Document*);
+    static PassRefPtr<HTMLMapElement> create(Document&);
+    static PassRefPtr<HTMLMapElement> create(const QualifiedName&, Document&);
     virtual ~HTMLMapElement();
 
     const AtomicString& getName() const { return m_name; }
@@ -44,7 +44,7 @@ public:
     PassRefPtr<HTMLCollection> areas();
 
 private:
-    HTMLMapElement(const QualifiedName&, Document*);
+    HTMLMapElement(const QualifiedName&, Document&);
 
     virtual void parseAttribute(const QualifiedName&, const AtomicString&) OVERRIDE;
 
@@ -54,12 +54,8 @@ private:
     AtomicString m_name;
 };
 
-inline HTMLMapElement* toHTMLMapElement(Node* node)
-{
-    ASSERT_WITH_SECURITY_IMPLICATION(!node || isHTMLMapElement(node));
-    return static_cast<HTMLMapElement*>(node);
-}
+ELEMENT_TYPE_CASTS(HTMLMapElement)
 
-} //namespace
+} // namespaces
 
 #endif

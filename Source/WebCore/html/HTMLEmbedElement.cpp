@@ -37,19 +37,20 @@
 #include "RenderEmbeddedObject.h"
 #include "RenderWidget.h"
 #include "Settings.h"
+#include "SubframeLoader.h"
 #include <wtf/Ref.h>
 
 namespace WebCore {
 
 using namespace HTMLNames;
 
-inline HTMLEmbedElement::HTMLEmbedElement(const QualifiedName& tagName, Document* document, bool createdByParser)
+inline HTMLEmbedElement::HTMLEmbedElement(const QualifiedName& tagName, Document& document, bool createdByParser)
     : HTMLPlugInImageElement(tagName, document, createdByParser, ShouldPreferPlugInsForImages)
 {
     ASSERT(hasTagName(embedTag));
 }
 
-PassRefPtr<HTMLEmbedElement> HTMLEmbedElement::create(const QualifiedName& tagName, Document* document, bool createdByParser)
+PassRefPtr<HTMLEmbedElement> HTMLEmbedElement::create(const QualifiedName& tagName, Document& document, bool createdByParser)
 {
     return adoptRef(new HTMLEmbedElement(tagName, document, createdByParser));
 }
@@ -169,19 +170,15 @@ void HTMLEmbedElement::updateWidget(PluginCreationOption pluginCreationOption)
     if (!renderer()) // Do not load the plugin if beforeload removed this element or its renderer.
         return;
 
-    SubframeLoader* loader = document().frame()->loader().subframeLoader();
+    SubframeLoader& loader = document().frame()->loader().subframeLoader();
     // FIXME: beforeLoad could have detached the renderer!  Just like in the <object> case above.
-    loader->requestObject(this, m_url, getNameAttribute(), m_serviceType, paramNames, paramValues);
+    loader.requestObject(this, m_url, getNameAttribute(), m_serviceType, paramNames, paramValues);
 }
 
 bool HTMLEmbedElement::rendererIsNeeded(const RenderStyle& style)
 {
     if (isImageType())
         return HTMLPlugInImageElement::rendererIsNeeded(style);
-
-    Frame* frame = document().frame();
-    if (!frame)
-        return false;
 
     // If my parent is an <object> and is not set to use fallback content, I
     // should be ignored and not get a renderer.
@@ -197,7 +194,7 @@ bool HTMLEmbedElement::rendererIsNeeded(const RenderStyle& style)
 
 #if ENABLE(DASHBOARD_SUPPORT)
     // Workaround for <rdar://problem/6642221>.
-    if (frame->settings().usesDashboardBackwardCompatibilityMode())
+    if (document().frame()->settings().usesDashboardBackwardCompatibilityMode())
         return true;
 #endif
 

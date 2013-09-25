@@ -51,8 +51,8 @@ namespace WebCore {
 static inline SVGCursorElement* resourceReferencedByCursorElement(const String& url, Document* document)
 {
     Element* element = SVGURIReference::targetElementFromIRIString(url, document);
-    if (element && element->hasTagName(SVGNames::cursorTag))
-        return static_cast<SVGCursorElement*>(element);
+    if (element && isSVGCursorElement(element))
+        return toSVGCursorElement(element);
 
     return 0;
 }
@@ -86,7 +86,7 @@ CSSCursorImageValue::~CSSCursorImageValue()
 #endif
 }
 
-String CSSCursorImageValue::customCssText() const
+String CSSCursorImageValue::customCSSText() const
 {
     StringBuilder result;
     result.append(m_imageValue->cssText());

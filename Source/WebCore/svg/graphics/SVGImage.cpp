@@ -33,6 +33,7 @@
 #include "Chrome.h"
 #include "DocumentLoader.h"
 #include "ElementIterator.h"
+#include "Frame.h"
 #include "FrameView.h"
 #include "ImageBuffer.h"
 #include "ImageObserver.h"
@@ -357,7 +358,7 @@ bool SVGImage::dataChanged(bool allDataReceived)
         m_page->settings().setPluginsEnabled(false);
 
         Frame& frame = m_page->mainFrame();
-        frame.setView(FrameView::create(&frame));
+        frame.setView(FrameView::create(frame));
         frame.init();
         FrameLoader& loader = frame.loader();
         loader.forceSandboxFlags(SandboxAll);

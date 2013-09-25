@@ -95,7 +95,7 @@ static const String& verticalGrowingRightKeyword()
 
 // ----------------------------
 
-TextTrackCueBox::TextTrackCueBox(Document* document, TextTrackCue* cue)
+TextTrackCueBox::TextTrackCueBox(Document& document, TextTrackCue* cue)
     : HTMLElement(divTag, document)
     , m_cue(cue)
 {
@@ -177,7 +177,7 @@ const AtomicString& TextTrackCueBox::textTrackCueBoxShadowPseudoId()
     return trackDisplayBoxShadowPseudoId;
 }
 
-RenderObject* TextTrackCueBox::createRenderer(RenderArena* arena, RenderStyle*)
+RenderElement* TextTrackCueBox::createRenderer(RenderArena& arena, RenderStyle&)
 {
     return new (arena) RenderTextTrackCue(this);
 }
@@ -202,7 +202,7 @@ TextTrackCue::TextTrackCue(ScriptExecutionContext* context, double start, double
     , m_isActive(false)
     , m_pauseOnExit(false)
     , m_snapToLines(true)
-    , m_cueBackgroundBox(HTMLSpanElement::create(spanTag, toDocument(context)))
+    , m_cueBackgroundBox(HTMLSpanElement::create(spanTag, *toDocument(context)))
     , m_displayTreeShouldChange(true)
     , m_displayDirection(CSSValueLtr)
 {
@@ -1154,9 +1154,9 @@ std::pair<double, double> TextTrackCue::getCSSPosition() const
     return m_displayPosition;
 }
 
-const AtomicString& TextTrackCue::interfaceName() const
+EventTargetInterface TextTrackCue::eventTargetInterface() const
 {
-    return eventNames().interfaceForTextTrackCue;
+    return TextTrackCueEventTargetInterfaceType;
 }
 
 ScriptExecutionContext* TextTrackCue::scriptExecutionContext() const

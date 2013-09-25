@@ -30,11 +30,12 @@
 #ifndef RenderRegion_h
 #define RenderRegion_h
 
-#include "RenderBlock.h"
+#include "RenderBlockFlow.h"
 #include "StyleInheritedData.h"
 
 namespace WebCore {
 
+class Element;
 struct LayerFragment;
 typedef Vector<LayerFragment, 1> LayerFragments;
 class RenderBox;
@@ -42,7 +43,7 @@ class RenderBoxRegionInfo;
 class RenderFlowThread;
 class RenderNamedFlowThread;
 
-class RenderRegion : public RenderBlock {
+class RenderRegion : public RenderBlockFlow {
 public:
     explicit RenderRegion(Element*, RenderFlowThread*);
 
@@ -72,7 +73,7 @@ public:
     RenderBoxRegionInfo* renderBoxRegionInfo(const RenderBox*) const;
     RenderBoxRegionInfo* setRenderBoxRegionInfo(const RenderBox*, LayoutUnit logicalLeftInset, LayoutUnit logicalRightInset,
         bool containingBlockChainIsInset);
-    PassOwnPtr<RenderBoxRegionInfo> takeRenderBoxRegionInfo(const RenderBox*);
+    OwnPtr<RenderBoxRegionInfo> takeRenderBoxRegionInfo(const RenderBox*);
     void removeRenderBoxRegionInfo(const RenderBox*);
 
     void deleteAllRenderBoxRegionInfo();

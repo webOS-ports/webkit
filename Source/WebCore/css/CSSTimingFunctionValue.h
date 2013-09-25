@@ -31,24 +31,6 @@
 
 namespace WebCore {
 
-class CSSLinearTimingFunctionValue : public CSSValue {
-public:
-    static PassRefPtr<CSSLinearTimingFunctionValue> create()
-    {
-        return adoptRef(new CSSLinearTimingFunctionValue);
-    }
-
-    String customCssText() const;
-
-    bool equals(const CSSLinearTimingFunctionValue&) const { return true; }
-
-private:
-    CSSLinearTimingFunctionValue()
-        : CSSValue(LinearTimingFunctionClass)
-    {
-    }
-};
-
 class CSSCubicBezierTimingFunctionValue : public CSSValue {
 public:
     static PassRefPtr<CSSCubicBezierTimingFunctionValue> create(double x1, double y1, double x2, double y2)
@@ -56,7 +38,7 @@ public:
         return adoptRef(new CSSCubicBezierTimingFunctionValue(x1, y1, x2, y2));
     }
 
-    String customCssText() const;
+    String customCSSText() const;
 
     double x1() const { return m_x1; }
     double y1() const { return m_y1; }
@@ -91,7 +73,7 @@ public:
     int numberOfSteps() const { return m_steps; }
     bool stepAtStart() const { return m_stepAtStart; }
 
-    String customCssText() const;
+    String customCSSText() const;
 
     bool equals(const CSSStepsTimingFunctionValue&) const;
 
