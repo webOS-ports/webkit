@@ -31,7 +31,7 @@
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include "Image.h"
-#include "KURL.h"
+#include "URL.h"
 #include "PasteboardHelper.h"
 #include "RenderImage.h"
 #include "markup.h"
@@ -78,6 +78,7 @@ PassOwnPtr<Pasteboard> Pasteboard::createPrivate()
     return create(DataObjectGtk::create());
 }
 
+#if ENABLE(DRAG_SUPPORT)
 PassOwnPtr<Pasteboard> Pasteboard::createForDragAndDrop()
 {
     return create(DataObjectGtk::create());
@@ -87,6 +88,7 @@ PassOwnPtr<Pasteboard> Pasteboard::createForDragAndDrop(const DragData& dragData
 {
     return create(dragData.platformData());
 }
+#endif
 
 Pasteboard::Pasteboard(PassRefPtr<DataObjectGtk> dataObject)
     : m_dataObject(dataObject)
@@ -185,7 +187,7 @@ void Pasteboard::write(const PasteboardURL& pasteboardURL)
         PasteboardHelper::defaultPasteboardHelper()->writeClipboardContents(m_gtkClipboard);
 }
 
-static KURL getURLForImageNode(Node* node)
+static URL getURLForImageNode(Node* node)
 {
     // FIXME: Later this code should be shared with Chromium somehow. Chances are all platforms want it.
     AtomicString urlString;
@@ -199,10 +201,10 @@ static KURL getURLForImageNode(Node* node)
         Element* element = toElement(node);
         urlString = element->imageSourceURL();
     }
-    return urlString.isEmpty() ? KURL() : node->document().completeURL(stripLeadingAndTrailingHTMLSpaces(urlString));
+    return urlString.isEmpty() ? URL() : node->document().completeURL(stripLeadingAndTrailingHTMLSpaces(urlString));
 }
 
-void Pasteboard::writeImage(Node* node, const KURL&, const String& title)
+void Pasteboard::writeImage(Node* node, const URL&, const String& title)
 {
     ASSERT(node);
 
@@ -218,7 +220,7 @@ void Pasteboard::writeImage(Node* node, const KURL&, const String& title)
 
     m_dataObject->clearAll();
 
-    KURL url = getURLForImageNode(node);
+    URL url = getURLForImageNode(node);
     if (!url.isEmpty()) {
         m_dataObject->setURL(url, title);
 
@@ -294,9 +296,11 @@ bool Pasteboard::canSmartReplace()
     return m_gtkClipboard && PasteboardHelper::defaultPasteboardHelper()->clipboardContentSupportsSmartReplace(m_gtkClipboard);
 }
 
+#if ENABLE(DRAG_SUPPORT)
 void Pasteboard::setDragImage(DragImageRef, const IntPoint& hotSpot)
 {
 }
+#endif
 
 PassRefPtr<DocumentFragment> Pasteboard::documentFragment(Frame* frame, PassRefPtr<Range> context,
                                                           bool allowPlainText, bool& chosePlainText)

@@ -27,7 +27,7 @@
 
 #include "EditingBoundary.h"
 #include "EventTarget.h"
-#include "KURLHash.h"
+#include "URLHash.h"
 #include "LayoutRect.h"
 #include "MutationObserver.h"
 #include "RenderStyleConstants.h"
@@ -72,7 +72,6 @@ class NodeListsNodeData;
 class NodeRareData;
 class PlatformKeyboardEvent;
 class PlatformMouseEvent;
-class PlatformWheelEvent;
 class QualifiedName;
 class RadioNodeList;
 class RegisteredEventListener;
@@ -192,9 +191,9 @@ public:
     Node* pseudoAwareFirstChild() const;
     Node* pseudoAwareLastChild() const;
 
-    virtual KURL baseURI() const;
+    virtual URL baseURI() const;
     
-    void getSubresourceURLs(ListHashSet<KURL>&) const;
+    void getSubresourceURLs(ListHashSet<URL>&) const;
 
     // These should all actually return a node, but this is only important for language bindings,
     // which will already know and hold a ref on the right node to return. Returning bool allows
@@ -343,11 +342,6 @@ public:
 
     void setInNamedFlow() { setFlag(InNamedFlowFlag); }
     void clearInNamedFlow() { clearFlag(InNamedFlowFlag); }
-
-#if ENABLE(STYLE_SCOPED)
-    bool hasScopedHTMLStyleChild() const { return getFlag(HasScopedHTMLStyleChildFlag); }
-    void setHasScopedHTMLStyleChild(bool flag) { setFlag(flag, HasScopedHTMLStyleChildFlag); }
-#endif
 
     bool hasEventTargetData() const { return getFlag(HasEventTargetDataFlag); }
     void setHasEventTargetData(bool flag) { setFlag(flag, HasEventTargetDataFlag); }
@@ -549,8 +543,6 @@ public:
     void dispatchSubtreeModifiedEvent();
     bool dispatchDOMActivateEvent(int detail, PassRefPtr<Event> underlyingEvent);
 
-    bool dispatchKeyEvent(const PlatformKeyboardEvent&);
-    bool dispatchWheelEvent(const PlatformWheelEvent&);
     bool dispatchMouseEvent(const PlatformMouseEvent&, const AtomicString& eventType, int clickCount = 0, Node* relatedTarget = 0);
 #if ENABLE(GESTURE_EVENTS)
     bool dispatchGestureEvent(const PlatformGestureEvent&);
@@ -581,12 +573,6 @@ public:
     void registerTransientMutationObserver(MutationObserverRegistration*);
     void unregisterTransientMutationObserver(MutationObserverRegistration*);
     void notifyMutationObserversNodeWillDetach();
-
-#if ENABLE(STYLE_SCOPED)
-    virtual void registerScopedHTMLStyleChild();
-    virtual void unregisterScopedHTMLStyleChild();
-    size_t numberOfScopedHTMLStyleChildren() const;
-#endif
 
     void textRects(Vector<IntRect>&) const;
 
@@ -630,12 +616,9 @@ private:
         InNamedFlowFlag = 1 << 19,
         HasSyntheticAttrChildNodesFlag = 1 << 20,
         HasCustomStyleResolveCallbacksFlag = 1 << 21,
-#if ENABLE(STYLE_SCOPED)
-        HasScopedHTMLStyleChildFlag = 1 << 22,
-#endif
-        HasEventTargetDataFlag = 1 << 23,
-        NeedsNodeRenderingTraversalSlowPathFlag = 1 << 25,
-        IsInShadowTreeFlag = 1 << 26,
+        HasEventTargetDataFlag = 1 << 22,
+        NeedsNodeRenderingTraversalSlowPathFlag = 1 << 23,
+        IsInShadowTreeFlag = 1 << 24,
 
         DefaultNodeFlags = IsParsingChildrenFinishedFlag
     };
@@ -667,7 +650,7 @@ protected:
 
     virtual void didMoveToNewDocument(Document* oldDocument);
     
-    virtual void addSubresourceAttributeURLs(ListHashSet<KURL>&) const { }
+    virtual void addSubresourceAttributeURLs(ListHashSet<URL>&) const { }
 
     bool hasRareData() const { return getFlag(HasRareDataFlag); }
 
@@ -740,7 +723,7 @@ protected:
 };
 
 // Used in Node::addSubresourceAttributeURLs() and in addSubresourceStyleURLs()
-inline void addSubresourceURL(ListHashSet<KURL>& urls, const KURL& url)
+inline void addSubresourceURL(ListHashSet<URL>& urls, const URL& url)
 {
     if (!url.isNull())
         urls.add(url);

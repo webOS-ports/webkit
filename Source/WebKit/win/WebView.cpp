@@ -89,7 +89,6 @@
 #include <WebCore/FileSystem.h>
 #include <WebCore/FloatQuad.h>
 #include <WebCore/FocusController.h>
-#include <WebCore/Frame.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/FrameSelection.h>
 #include <WebCore/FrameTree.h>
@@ -111,6 +110,7 @@
 #include <WebCore/KeyboardEvent.h>
 #include <WebCore/Logging.h>
 #include <WebCore/MIMETypeRegistry.h>
+#include <WebCore/MainFrame.h>
 #include <WebCore/MemoryCache.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/Page.h>
@@ -224,9 +224,9 @@ static inline String toString(BSTR bstr)
     return String(bstr, SysStringLen(bstr));
 }
 
-static inline KURL toKURL(BSTR bstr)
+static inline URL toURL(BSTR bstr)
 {
-    return KURL(KURL(), toString(bstr));
+    return URL(URL(), toString(bstr));
 }
 
 class PreferencesChangedOrRemovedObserver : public IWebNotificationObserver {
@@ -1619,6 +1619,10 @@ bool WebView::gestureNotify(WPARAM wParam, LPARAM lParam)
                 break;
             }
         }
+    } else {
+        // We've hit the main document but not any of the document's content
+        if (core(m_mainFrame)->view()->isScrollable())
+            canBeScrolled = true;
     }
 
     // We always allow two-fingered panning with inertia and a gutter (which limits movement to one
@@ -1695,14 +1699,14 @@ bool WebView::gesture(WPARAM wParam, LPARAM lParam)
             return false;
         }
 
-        ScrollView* scrolledView = 0;
+        ScrollableArea* scrolledArea = 0;
 
         if (!m_gestureTargetNode || !m_gestureTargetNode->renderer()) {
             // We might directly hit the document without hitting any nodes
             coreFrame->view()->scrollBy(IntSize(-deltaX, -deltaY));
-            scrolledView = coreFrame->view();
+            scrolledArea = coreFrame->view();
         } else
-            m_gestureTargetNode->renderer()->enclosingLayer()->scrollByRecursively(IntSize(-deltaX, -deltaY), WebCore::RenderLayer::ScrollOffsetClamped, &scrolledView);
+            m_gestureTargetNode->renderer()->enclosingLayer()->enclosingScrollableLayer()->scrollByRecursively(IntSize(-deltaX, -deltaY), WebCore::RenderLayer::ScrollOffsetClamped, &scrolledArea);
 
         if (!(UpdatePanningFeedbackPtr() && BeginPanningFeedbackPtr() && EndPanningFeedbackPtr())) {
             CloseGestureInfoHandlePtr()(gestureHandle);
@@ -1720,12 +1724,12 @@ bool WebView::gesture(WPARAM wParam, LPARAM lParam)
             m_xOverpan = 0;
         }
 
-        if (!scrolledView) {
+        if (!scrolledArea) {
             CloseGestureInfoHandlePtr()(gestureHandle);
             return true;
         }
 
-        Scrollbar* vertScrollbar = scrolledView->verticalScrollbar();
+        Scrollbar* vertScrollbar = scrolledArea->verticalScrollbar();
 
         int ypan = 0;
         int xpan = 0;
@@ -1733,7 +1737,7 @@ bool WebView::gesture(WPARAM wParam, LPARAM lParam)
         if (vertScrollbar && (!vertScrollbar->currentPos() || vertScrollbar->currentPos() >= vertScrollbar->maximum()))
             ypan = m_yOverpan;
 
-        Scrollbar* horiScrollbar = scrolledView->horizontalScrollbar();
+        Scrollbar* horiScrollbar = scrolledArea->horizontalScrollbar();
 
         if (horiScrollbar && (!horiScrollbar->currentPos() || horiScrollbar->currentPos() >= horiScrollbar->maximum()))
             xpan = m_xOverpan;
@@ -2494,7 +2498,7 @@ static String webKitVersionString()
     return buildNumberStringPtr;
 }
 
-const String& WebView::userAgentForKURL(const KURL&)
+const String& WebView::userAgentForKURL(const URL&)
 {
     if (m_userAgentOverridden)
         return m_userAgentCustom;
@@ -4783,12 +4787,12 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
     hr = preferences->isCSSRegionsEnabled(&enabled);
     if (FAILED(hr))
         return hr;
-    RuntimeEnabledFeatures::setCSSRegionsEnabled(!!enabled);
+    RuntimeEnabledFeatures::sharedFeatures().setCSSRegionsEnabled(!!enabled);
 
     hr = preferences->areSeamlessIFramesEnabled(&enabled);
     if (FAILED(hr))
         return hr;
-    RuntimeEnabledFeatures::setSeamlessIFramesEnabled(!!enabled);
+    RuntimeEnabledFeatures::sharedFeatures().setSeamlessIFramesEnabled(!!enabled);
 
     hr = preferences->privateBrowsingEnabled(&enabled);
     if (FAILED(hr))
@@ -4851,7 +4855,7 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
         settings.setUserStyleSheetLocation(url.get());
         str.clear();
     } else
-        settings.setUserStyleSheetLocation(KURL());
+        settings.setUserStyleSheetLocation(URL());
 
     hr = preferences->shouldPrintBackgrounds(&enabled);
     if (FAILED(hr))
@@ -6356,7 +6360,7 @@ HRESULT WebView::addUserScriptToGroup(BSTR groupName, IWebScriptWorld* iWorld, B
     if (!pageGroup)
         return E_FAIL;
 
-    pageGroup->addUserScriptToWorld(world->world(), toString(source), toKURL(url),
+    pageGroup->addUserScriptToWorld(world->world(), toString(source), toURL(url),
                                     toStringVector(whitelistCount, whitelist), toStringVector(blacklistCount, blacklist),
                                     injectionTime == WebInjectAtDocumentStart ? InjectAtDocumentStart : InjectAtDocumentEnd,
                                     InjectInAllFrames);
@@ -6381,7 +6385,7 @@ HRESULT WebView::addUserStyleSheetToGroup(BSTR groupName, IWebScriptWorld* iWorl
     if (!pageGroup)
         return E_FAIL;
 
-    pageGroup->addUserStyleSheetToWorld(world->world(), toString(source), toKURL(url),
+    pageGroup->addUserStyleSheetToWorld(world->world(), toString(source), toURL(url),
                                         toStringVector(whitelistCount, whitelist), toStringVector(blacklistCount, blacklist),
                                         InjectInAllFrames);
 
@@ -6403,7 +6407,7 @@ HRESULT WebView::removeUserScriptFromGroup(BSTR groupName, IWebScriptWorld* iWor
     if (!pageGroup)
         return E_FAIL;
 
-    pageGroup->removeUserScriptFromWorld(world->world(), toKURL(url));
+    pageGroup->removeUserScriptFromWorld(world->world(), toURL(url));
 
     return S_OK;
 }
@@ -6423,7 +6427,7 @@ HRESULT WebView::removeUserStyleSheetFromGroup(BSTR groupName, IWebScriptWorld* 
     if (!pageGroup)
         return E_FAIL;
 
-    pageGroup->removeUserStyleSheetFromWorld(world->world(), toKURL(url));
+    pageGroup->removeUserStyleSheetFromWorld(world->world(), toURL(url));
 
     return S_OK;
 }
@@ -6545,7 +6549,7 @@ HRESULT WebView::addVisitedLinks(BSTR* visitedURLs, unsigned visitedURLCount)
     return S_OK;
 }
 
-void WebView::downloadURL(const KURL& url)
+void WebView::downloadURL(const URL& url)
 {
     // It's the delegate's job to ref the WebDownload to keep it alive - otherwise it will be
     // destroyed when this function returns.

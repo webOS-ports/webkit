@@ -29,7 +29,7 @@
 
 #include "HTMLElement.h"
 #include "HTMLNames.h"
-#include "RenderObject.h"
+#include "RenderElement.h"
 #include "RenderStyle.h"
 #include "Text.h"
 #include "TextIterator.h"
@@ -108,7 +108,7 @@ void ApplyBlockElementCommand::formatSelection(const VisiblePosition& startOfSel
     if (isAtUnsplittableElement(start)) {
         RefPtr<Element> blockquote = createBlockElement();
         insertNodeAt(blockquote, start);
-        RefPtr<Element> placeholder = createBreakElement(&document());
+        RefPtr<Element> placeholder = createBreakElement(document());
         appendNode(placeholder, blockquote);
         setEndingSelection(VisibleSelection(positionBeforeNode(placeholder.get()), DOWNSTREAM, endingSelection().isDirectional()));
         return;
@@ -284,7 +284,7 @@ VisiblePosition ApplyBlockElementCommand::endOfNextParagrahSplittingTextNodesIfN
 
 PassRefPtr<Element> ApplyBlockElementCommand::createBlockElement() const
 {
-    RefPtr<Element> element = createHTMLElement(&document(), m_tagName);
+    RefPtr<Element> element = createHTMLElement(document(), m_tagName);
     if (m_inlineStyle.length())
         element->setAttribute(styleAttr, m_inlineStyle);
     return element.release();

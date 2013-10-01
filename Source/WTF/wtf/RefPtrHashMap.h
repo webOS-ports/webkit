@@ -47,7 +47,7 @@ namespace WTF {
         typedef typename MappedTraits::PassOutType MappedPassOutType;
         typedef typename MappedTraits::PeekType MappedPeekType;
 
-        typedef typename ReferenceTypeMaker<MappedPassInType>::ReferenceType MappedPassInReferenceType;
+        typedef typename std::add_lvalue_reference<MappedPassInType>::type MappedPassInReferenceType;
         
         typedef HashArg HashFunctions;
 
@@ -228,7 +228,7 @@ namespace WTF {
     template<typename V>
     auto HashMap<RefPtr<KeyArg>, MappedArg, HashArg, KeyTraitsArg, MappedTraitsArg>::set(RawKeyType key, V&& value) -> AddResult
     {
-        AddResult result = inlineAdd(key, value);
+        AddResult result = inlineAdd(key, std::forward<V>(value));
         if (!result.isNewEntry) {
             // The inlineAdd call above found an existing hash table entry; we need to set the mapped value.
             result.iterator->value = std::forward<V>(value);

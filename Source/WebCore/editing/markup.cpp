@@ -48,11 +48,10 @@
 #include "HTMLTableElement.h"
 #include "HTMLTextAreaElement.h"
 #include "HTMLTextFormControlElement.h"
-#include "KURL.h"
+#include "URL.h"
 #include "MarkupAccumulator.h"
 #include "Range.h"
 #include "RenderBlock.h"
-#include "RenderObject.h"
 #include "StylePropertySet.h"
 #include "TextIterator.h"
 #include "VisibleSelection.h"
@@ -100,7 +99,7 @@ static void completeURLs(DocumentFragment* fragment, const String& baseURL)
 {
     Vector<AttributeChange> changes;
 
-    KURL parsedBaseURL(ParsedURLString, baseURL);
+    URL parsedBaseURL(ParsedURLString, baseURL);
 
     for (auto element = elementDescendants(fragment).begin(), end = elementDescendants(fragment).end(); element != end; ++element) {
         if (!element->hasAttributes())
@@ -109,7 +108,7 @@ static void completeURLs(DocumentFragment* fragment, const String& baseURL)
         for (unsigned i = 0; i < length; i++) {
             const Attribute& attribute = element->attributeAt(i);
             if (element->isURLAttribute(attribute) && !attribute.value().isEmpty())
-                changes.append(AttributeChange(&*element, attribute.name(), KURL(parsedBaseURL, attribute.value()).string()));
+                changes.append(AttributeChange(&*element, attribute.name(), URL(parsedBaseURL, attribute.value()).string()));
         }
     }
 
@@ -723,7 +722,7 @@ PassRefPtr<DocumentFragment> createFragmentFromMarkupWithContext(Document* docum
     taggedMarkup.append(markup.substring(fragmentEnd));
 
     RefPtr<DocumentFragment> taggedFragment = createFragmentFromMarkup(document, taggedMarkup.toString(), baseURL, parserContentPolicy);
-    RefPtr<Document> taggedDocument = Document::create(0, KURL());
+    RefPtr<Document> taggedDocument = Document::create(0, URL());
     taggedDocument->takeAllChildrenFrom(taggedFragment.get());
 
     RefPtr<Node> nodeBeforeContext;
@@ -771,7 +770,7 @@ String createMarkup(const Node* node, EChildrenOnly childrenOnly, Vector<Node*>*
 
 static void fillContainerFromString(ContainerNode* paragraph, const String& string)
 {
-    Document* document = &paragraph->document();
+    Document& document = paragraph->document();
 
     if (string.isEmpty()) {
         paragraph->appendChild(createBlockPlaceholderElement(document), ASSERT_NO_EXCEPTION);
@@ -794,7 +793,7 @@ static void fillContainerFromString(ContainerNode* paragraph, const String& stri
                 paragraph->appendChild(createTabSpanElement(document, tabText), ASSERT_NO_EXCEPTION);
                 tabText = emptyString();
             }
-            RefPtr<Node> textNode = document->createTextNode(stringWithRebalancedWhitespace(s, first, i + 1 == numEntries));
+            RefPtr<Node> textNode = document.createTextNode(stringWithRebalancedWhitespace(s, first, i + 1 == numEntries));
             paragraph->appendChild(textNode.release(), ASSERT_NO_EXCEPTION);
         }
 
@@ -848,7 +847,7 @@ PassRefPtr<DocumentFragment> createFragmentFromText(Range* context, const String
     if (contextPreservesNewline(*context)) {
         fragment->appendChild(document.createTextNode(string), ASSERT_NO_EXCEPTION);
         if (string.endsWith('\n')) {
-            RefPtr<Element> element = createBreakElement(&document);
+            RefPtr<Element> element = createBreakElement(document);
             element->setAttribute(classAttr, AppleInterchangeNewline);            
             fragment->appendChild(element.release(), ASSERT_NO_EXCEPTION);
         }
@@ -880,16 +879,16 @@ PassRefPtr<DocumentFragment> createFragmentFromText(Range* context, const String
         RefPtr<Element> element;
         if (s.isEmpty() && i + 1 == numLines) {
             // For last line, use the "magic BR" rather than a P.
-            element = createBreakElement(&document);
+            element = createBreakElement(document);
             element->setAttribute(classAttr, AppleInterchangeNewline);
         } else if (useLineBreak) {
-            element = createBreakElement(&document);
+            element = createBreakElement(document);
             fillContainerFromString(fragment.get(), s);
         } else {
             if (useClonesOfEnclosingBlock)
                 element = block->cloneElementWithoutChildren();
             else
-                element = createDefaultParagraphElement(&document);
+                element = createDefaultParagraphElement(document);
             fillContainerFromString(element.get(), s);
         }
         fragment->appendChild(element.release(), ASSERT_NO_EXCEPTION);
@@ -897,7 +896,7 @@ PassRefPtr<DocumentFragment> createFragmentFromText(Range* context, const String
     return fragment.release();
 }
 
-PassRefPtr<DocumentFragment> createFragmentFromNodes(Document *document, const Vector<Node*>& nodes)
+PassRefPtr<DocumentFragment> createFragmentFromNodes(Document* document, const Vector<Node*>& nodes)
 {
     if (!document)
         return 0;
@@ -911,7 +910,7 @@ PassRefPtr<DocumentFragment> createFragmentFromNodes(Document *document, const V
 
     size_t size = nodes.size();
     for (size_t i = 0; i < size; ++i) {
-        RefPtr<Element> element = createDefaultParagraphElement(document);
+        RefPtr<Element> element = createDefaultParagraphElement(*document);
         element->appendChild(nodes[i], ASSERT_NO_EXCEPTION);
         fragment->appendChild(element.release(), ASSERT_NO_EXCEPTION);
     }
@@ -952,7 +951,7 @@ String createFullMarkup(const Range* range)
     return documentTypeString(node->document()) + createMarkup(range, 0, AnnotateForInterchange);
 }
 
-String urlToMarkup(const KURL& url, const String& title)
+String urlToMarkup(const URL& url, const String& title)
 {
     StringBuilder markup;
     markup.append("<a href=\"");

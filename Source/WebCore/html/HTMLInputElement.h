@@ -39,7 +39,7 @@ class HTMLImageLoader;
 class HTMLOptionElement;
 class Icon;
 class InputType;
-class KURL;
+class URL;
 class ListAttributeTargetObserver;
 struct DateTimeChooserParameters;
 
@@ -214,7 +214,7 @@ public:
     void setSize(unsigned);
     void setSize(unsigned, ExceptionCode&);
 
-    KURL src() const;
+    URL src() const;
 
     virtual int maxLength() const;
     void setMaxLength(int, ExceptionCode&);
@@ -229,10 +229,6 @@ public:
 
     // Returns true if the given DragData has more than one dropped files.
     bool receiveDroppedFiles(const DragData*);
-
-#if ENABLE(FILE_SYSTEM)
-    String droppedFileSystemId();
-#endif
 
     Icon* icon() const;
     // These functions are used for rendering the input active during a
@@ -372,7 +368,7 @@ private:
     virtual void documentWillSuspendForPageCache() OVERRIDE;
 #endif
 
-    virtual void addSubresourceAttributeURLs(ListHashSet<KURL>&) const;
+    virtual void addSubresourceAttributeURLs(ListHashSet<URL>&) const;
 
     bool needsSuspensionCallback();
     void registerForSuspensionCallbackIfNeeded();

@@ -250,14 +250,14 @@ protected:
 
     void addFunction(VM& vm, const char* name, NativeFunction function, unsigned arguments)
     {
-        Identifier identifier(globalExec(), name);
-        putDirect(vm, identifier, JSFunction::create(globalExec(), this, arguments, identifier.string(), function));
+        Identifier identifier(&vm, name);
+        putDirect(vm, identifier, JSFunction::create(vm, this, arguments, identifier.string(), function));
     }
     
     void addConstructableFunction(VM& vm, const char* name, NativeFunction function, unsigned arguments)
     {
-        Identifier identifier(globalExec(), name);
-        putDirect(vm, identifier, JSFunction::create(globalExec(), this, arguments, identifier.string(), function, NoIntrinsic, function));
+        Identifier identifier(&vm, name);
+        putDirect(vm, identifier, JSFunction::create(vm, this, arguments, identifier.string(), function, NoIntrinsic, function));
     }
 };
 
@@ -587,7 +587,8 @@ int main(int argc, char** argv)
     WTF::initializeMainThread();
 #endif
     JSC::initializeThreading();
-    
+
+#if !OS(WINCE)
     if (char* timeoutString = getenv("JSC_timeout")) {
         if (sscanf(timeoutString, "%lf", &s_desiredTimeout) != 1) {
             dataLog(
@@ -598,6 +599,7 @@ int main(int argc, char** argv)
             createThread(timeoutThreadMain, 0, "jsc Timeout Thread");
         }
     }
+#endif
 
     // We can't use destructors in the following code because it uses Windows
     // Structured Exception Handling

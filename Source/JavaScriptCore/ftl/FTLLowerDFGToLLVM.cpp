@@ -42,6 +42,8 @@
 #include "LinkBuffer.h"
 #include "OperandsInlines.h"
 #include "Operations.h"
+#include "VirtualRegister.h"
+
 #include <wtf/ProcessID.h>
 
 namespace JSC { namespace FTL {
@@ -69,7 +71,7 @@ public:
         , m_heaps(state.context)
         , m_out(state.context)
         , m_valueSources(OperandsLike, state.graph.block(0)->variablesAtHead)
-        , m_lastSetOperand(std::numeric_limits<int>::max())
+        , m_lastSetOperand(VirtualRegister())
         , m_exitThunkGenerator(state)
         , m_state(state.graph)
         , m_interpreter(state.graph, m_state)
@@ -277,10 +279,10 @@ private:
             break;
         case ArithAdd:
         case ValueAdd:
-            compileAdd();
+            compileAddSub(Add);
             break;
         case ArithSub:
-            compileArithSub();
+            compileAddSub(Sub);
             break;
         case ArithMul:
             compileArithMul();
@@ -524,7 +526,7 @@ private:
     void compileGetArgument()
     {
         VariableAccessData* variable = m_node->variableAccessData();
-        int operand = variable->operand();
+        VirtualRegister operand = variable->local();
 
         LValue jsValue = m_out.load64(addressFor(operand));
 
@@ -554,7 +556,7 @@ private:
     {
         EncodedJSValue* buffer = static_cast<EncodedJSValue*>(
             m_ftlState.jitCode->ftlForOSREntry()->entryBuffer()->dataBuffer());
-        setJSValue(m_out.load64(m_out.absolute(buffer + operandToLocal(m_node->unlinkedLocal()))));
+        setJSValue(m_out.load64(m_out.absolute(buffer + m_node->unlinkedLocal().toLocal())));
     }
     
     void compileGetLocal()
@@ -652,19 +654,22 @@ private:
         DFG_NODE_DO_TO_CHILDREN(m_graph, m_node, speculate);
     }
     
-    void compileAdd()
+    enum AddOrSubKind {Add, Sub};
+    void compileAddSub(AddOrSubKind opKind)
     {
+        bool isSub = opKind == Sub;
         switch (m_node->binaryUseKind()) {
         case Int32Use: {
             LValue left = lowInt32(m_node->child1());
             LValue right = lowInt32(m_node->child2());
             
             if (bytecodeCanTruncateInteger(m_node->arithNodeFlags())) {
-                setInt32(m_out.add(left, right));
+                setInt32(isSub ? m_out.sub(left, right) : m_out.add(left, right));
                 break;
             }
-            
-            LValue result = m_out.addWithOverflow32(left, right);
+
+            LValue result = isSub ? m_out.subWithOverflow32(left, right) : m_out.addWithOverflow32(left, right);
+
             speculate(Overflow, noValue(), 0, m_out.extractValue(result, 1));
             setInt32(m_out.extractValue(result, 0));
             break;
@@ -676,69 +681,23 @@ private:
                 Int52Kind kind;
                 LValue left = lowWhicheverInt52(m_node->child1(), kind);
                 LValue right = lowInt52(m_node->child2(), kind);
-                setInt52(m_out.add(left, right), kind);
+                setInt52(isSub ? m_out.sub(left, right) : m_out.add(left, right), kind);
                 break;
             }
             
             LValue left = lowInt52(m_node->child1());
             LValue right = lowInt52(m_node->child2());
-            LValue result = m_out.addWithOverflow64(left, right);
+            LValue result = isSub ? m_out.subWithOverflow64(left, right) : m_out.addWithOverflow64(left, right);
             speculate(Int52Overflow, noValue(), 0, m_out.extractValue(result, 1));
             setInt52(m_out.extractValue(result, 0));
             break;
         }
             
         case NumberUse: {
-            setDouble(
-                m_out.doubleAdd(lowDouble(m_node->child1()), lowDouble(m_node->child2())));
-            break;
-        }
-            
-        default:
-            RELEASE_ASSERT_NOT_REACHED();
-            break;
-        }
-    }
-    
-    void compileArithSub()
-    {
-        switch (m_node->binaryUseKind()) {
-        case Int32Use: {
-            LValue left = lowInt32(m_node->child1());
-            LValue right = lowInt32(m_node->child2());
-            
-            if (bytecodeCanTruncateInteger(m_node->arithNodeFlags())) {
-                setInt32(m_out.sub(left, right));
-                break;
-            }
-            
-            LValue result = m_out.subWithOverflow32(left, right);
-            speculate(Overflow, noValue(), 0, m_out.extractValue(result, 1));
-            setInt32(m_out.extractValue(result, 0));
-            break;
-        }
-            
-        case MachineIntUse: {
-            if (!m_state.forNode(m_node->child1()).couldBeType(SpecInt52)
-                && !m_state.forNode(m_node->child2()).couldBeType(SpecInt52)) {
-                Int52Kind kind;
-                LValue left = lowWhicheverInt52(m_node->child1(), kind);
-                LValue right = lowInt52(m_node->child2(), kind);
-                setInt52(m_out.sub(left, right), kind);
-                break;
-            }
-            
-            LValue left = lowInt52(m_node->child1());
-            LValue right = lowInt52(m_node->child2());
-            LValue result = m_out.subWithOverflow64(left, right);
-            speculate(Int52Overflow, noValue(), 0, m_out.extractValue(result, 1));
-            setInt52(m_out.extractValue(result, 0));
-            break;
-        }
-            
-        case NumberUse: {
-            setDouble(
-                m_out.doubleSub(lowDouble(m_node->child1()), lowDouble(m_node->child2())));
+            LValue C1 = lowDouble(m_node->child1());
+            LValue C2 = lowDouble(m_node->child2());
+
+            setDouble(isSub ? m_out.doubleSub(C1, C2) : m_out.doubleAdd(C1, C2));
             break;
         }
             
@@ -1994,7 +1953,7 @@ private:
         // FIXME: This is unacceptably slow.
         // https://bugs.webkit.org/show_bug.cgi?id=113621
         
-        J_DFGOperation_E function =
+        J_JITOperation_E function =
             m_node->op() == Call ? operationFTLCall : operationFTLConstruct;
         
         int dummyThisArgument = m_node->op() == Call ? 0 : 1;
@@ -2003,7 +1962,7 @@ private:
         
         LValue calleeFrame = m_out.add(
             m_callFrame,
-            m_out.constIntPtr(sizeof(Register) * localToOperand(codeBlock()->m_numCalleeRegisters)));
+            m_out.constIntPtr(sizeof(Register) * virtualRegisterForLocal(codeBlock()->m_numCalleeRegisters).offset()));
         
         m_out.store32(
             m_out.constInt32(numPassedArgs + dummyThisArgument),
@@ -2016,7 +1975,7 @@ private:
         for (int i = 0; i < numPassedArgs; ++i) {
             m_out.store64(
                 lowJSValue(m_graph.varArgChild(m_node, 1 + i)),
-                addressFor(calleeFrame, argumentToOperand(i + dummyThisArgument)));
+                addressFor(calleeFrame, virtualRegisterForArgument(i + dummyThisArgument).offset()));
         }
         
         setJSValue(vmCall(m_out.operation(function), calleeFrame));
@@ -2991,6 +2950,9 @@ private:
         case NumberUse:
             speculateNumber(edge);
             break;
+        case MachineIntUse:
+            speculateMachineInt(edge);
+            break;
         case BooleanUse:
             speculateBoolean(edge);
             break;
@@ -3173,6 +3135,15 @@ private:
             m_out.doubleNotEqualOrUnordered(value, value));
     }
     
+    void speculateMachineInt(Edge edge)
+    {
+        if (!m_interpreter.needsTypeCheck(edge))
+            return;
+        
+        Int52Kind kind;
+        lowWhicheverInt52(edge, kind);
+    }
+    
     void speculateBoolean(Edge edge)
     {
         lowBoolean(edge);
@@ -3236,7 +3207,7 @@ private:
         m_out.store32(
             m_out.constInt32(
                 CallFrame::Location::encodeAsCodeOriginIndex(
-                    codeBlock()->addCodeOrigin(codeOrigin))), 
+                    m_ftlState.jitCode->common.addCodeOrigin(codeOrigin))),
             tagFor(JSStack::ArgumentCount));
     }
     void callPreflight()
@@ -3351,7 +3322,7 @@ private:
         
         m_ftlState.jitCode->osrExit.append(OSRExit(
             kind, lowValue.format(), m_graph.methodOfGettingAValueProfileFor(highValue),
-            m_codeOriginForExitTarget, m_codeOriginForExitProfile, m_lastSetOperand,
+            m_codeOriginForExitTarget, m_codeOriginForExitProfile, m_lastSetOperand.offset(),
             m_valueSources.numberOfArguments(), m_valueSources.numberOfLocals()));
         m_ftlState.osrExit.append(OSRExitCompilationInfo());
         
@@ -3626,7 +3597,7 @@ private:
         ASSERT(node->containsMovHint());
         ASSERT(node->op() != ZombieHint);
         
-        int operand = node->local();
+        VirtualRegister operand = node->local();
         
         m_lastSetOperand = operand;
         m_valueSources.operand(operand) = ValueSource(node->child1().node());
@@ -3744,13 +3715,25 @@ private:
     {
         return addressFor(m_callFrame, operand);
     }
+    TypedPointer addressFor(VirtualRegister operand)
+    {
+        return addressFor(m_callFrame, operand.offset());
+    }
     TypedPointer payloadFor(int operand)
     {
         return payloadFor(m_callFrame, operand);
     }
+    TypedPointer payloadFor(VirtualRegister operand)
+    {
+        return payloadFor(m_callFrame, operand.offset());
+    }
     TypedPointer tagFor(int operand)
     {
         return tagFor(m_callFrame, operand);
+    }
+    TypedPointer tagFor(VirtualRegister operand)
+    {
+        return tagFor(m_callFrame, operand.offset());
     }
     
     VM& vm() { return m_graph.m_vm; }
@@ -3781,7 +3764,7 @@ private:
     HashMap<Node*, LValue> m_phis;
     
     Operands<ValueSource> m_valueSources;
-    int m_lastSetOperand;
+    VirtualRegister m_lastSetOperand;
     ExitThunkGenerator m_exitThunkGenerator;
     
     InPlaceAbstractState m_state;

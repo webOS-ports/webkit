@@ -595,12 +595,12 @@ void write(TextStream& ts, const RenderObject& o, int indent, RenderAsTextBehavi
             writeIndent(ts, indent + 1);
             writeTextRun(ts, text, *box);
         }
-    }
-
-    for (RenderObject* child = o.firstChild(); child; child = child->nextSibling()) {
-        if (child->hasLayer())
-            continue;
-        write(ts, *child, indent + 1, behavior);
+    } else {
+        for (RenderObject* child = toRenderElement(o).firstChild(); child; child = child->nextSibling()) {
+            if (child->hasLayer())
+                continue;
+            write(ts, *child, indent + 1, behavior);
+        }
     }
 
     if (o.isWidget()) {
@@ -914,7 +914,7 @@ String externalRepresentation(Element* element, RenderAsTextBehavior behavior)
     return externalRepresentation(toRenderBox(renderer), behavior | RenderAsTextShowAllLayers);
 }
 
-static void writeCounterValuesFromChildren(TextStream& stream, RenderObject* parent, bool& isFirstCounter)
+static void writeCounterValuesFromChildren(TextStream& stream, RenderElement* parent, bool& isFirstCounter)
 {
     if (!parent)
         return;

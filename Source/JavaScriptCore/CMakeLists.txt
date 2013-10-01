@@ -57,6 +57,7 @@ set(JavaScriptCore_SOURCES
     bytecode/ExecutionCounter.cpp
     bytecode/ExitKind.cpp
     bytecode/GetByIdStatus.cpp
+    bytecode/InlineCallFrameSet.cpp
     bytecode/JumpTable.cpp
     bytecode/LazyOperandValueProfile.cpp
     bytecode/MethodOfGettingAValueProfile.cpp
@@ -71,6 +72,7 @@ set(JavaScriptCore_SOURCES
     bytecode/StructureStubClearingWatchpoint.cpp
     bytecode/StructureStubInfo.cpp
     bytecode/UnlinkedCodeBlock.cpp
+    bytecode/ValueRecovery.cpp
     bytecode/Watchpoint.cpp
 
     bytecompiler/BytecodeGenerator.cpp
@@ -149,7 +151,6 @@ set(JavaScriptCore_SOURCES
     dfg/DFGPlan.cpp
     dfg/DFGPredictionInjectionPhase.cpp
     dfg/DFGPredictionPropagationPhase.cpp
-    dfg/DFGRepatch.cpp
     dfg/DFGSSAConversionPhase.cpp
     dfg/DFGSpeculativeJIT.cpp
     dfg/DFGSpeculativeJIT32_64.cpp
@@ -224,6 +225,7 @@ set(JavaScriptCore_SOURCES
     jit/JITExceptions.cpp
     jit/JITOpcodes.cpp
     jit/JITOpcodes32_64.cpp
+    jit/JITOperations.cpp
     jit/JITPropertyAccess.cpp
     jit/JITPropertyAccess32_64.cpp
     jit/JITStubRoutine.cpp
@@ -231,6 +233,7 @@ set(JavaScriptCore_SOURCES
     jit/JITThunks.cpp
     jit/JITToDFGDeferredCompilationCallback.cpp
     jit/JumpReplacementWatchpoint.cpp
+    jit/Repatch.cpp
     jit/ThunkGenerators.cpp
 
     parser/Lexer.cpp

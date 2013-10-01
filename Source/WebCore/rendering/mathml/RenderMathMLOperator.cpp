@@ -139,7 +139,7 @@ void RenderMathMLOperator::updateFromElement()
     RenderObject* savedRenderer = element()->renderer();
 
     // Destroy our current children
-    children()->destroyLeftoverChildren();
+    destroyLeftoverChildren();
 
     // Since we share a node with our children, destroying our children may set our node's
     // renderer to 0, so we need to restore it.
@@ -234,9 +234,6 @@ void RenderMathMLOperator::updateFromElement()
             text = RenderText::createAnonymous(document(), element()->textContent().replace(hyphenMinus, minusSign).impl());
         // If we can't figure out the text, leave it blank.
         if (text) {
-            RefPtr<RenderStyle> textStyle = RenderStyle::create();
-            textStyle->inheritFrom(container->style());
-            text->setStyle(textStyle.release());
             container->addChild(text);
         }
     } else {
@@ -316,7 +313,6 @@ RenderBlock* RenderMathMLOperator::createGlyph(UChar glyph, int maxHeightForRend
     }
     
     RenderText* text = RenderText::createAnonymous(document(), String(&glyph, 1));
-    text->setStyle(container->style());
     parent->addChild(text);
     return container;
 }

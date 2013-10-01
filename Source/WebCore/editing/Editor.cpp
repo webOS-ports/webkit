@@ -438,7 +438,7 @@ String Editor::plainTextFromPasteboard(const PasteboardPlainText& text)
 
 #endif
 
-#if !(PLATFORM(MAC) && !PLATFORM(IOS)) && !PLATFORM(EFL)
+#if !PLATFORM(MAC) && !PLATFORM(EFL)
 void Editor::pasteWithPasteboard(Pasteboard* pasteboard, bool allowPlainText)
 {
     RefPtr<Range> range = selectedRange();
@@ -557,7 +557,7 @@ void Editor::respondToChangedContents(const VisibleSelection& endingSelection)
     if (AXObjectCache::accessibilityEnabled()) {
         Node* node = endingSelection.start().deprecatedNode();
         if (AXObjectCache* cache = m_frame.document()->existingAXObjectCache())
-            cache->postNotification(node, AXObjectCache::AXValueChanged, false);
+            cache->postNotification(node, AXObjectCache::AXValueChanged, TargetObservableParent);
     }
 
     updateMarkersForWordsAffectedByEditing(true);
@@ -580,7 +580,7 @@ bool Editor::hasBidiSelection() const
     } else
         startNode = m_frame.selection().selection().visibleStart().deepEquivalent().deprecatedNode();
 
-    RenderObject* renderer = startNode->renderer();
+    auto renderer = startNode->renderer();
     while (renderer && !renderer->isRenderBlock())
         renderer = renderer->parent();
 
@@ -712,10 +712,6 @@ bool Editor::dispatchCPPEvent(const AtomicString& eventType, ClipboardAccessPoli
         return true;
 
     RefPtr<Clipboard> clipboard = Clipboard::createForCopyAndPaste(policy);
-
-#if PLATFORM(IOS)
-    clipboard->pasteboard().setFrame(m_frame);
-#endif
 
     RefPtr<Event> event = ClipboardEvent::create(eventType, true, true, clipboard);
     target->dispatchEvent(event, IGNORE_EXCEPTION);
@@ -1064,7 +1060,7 @@ void Editor::cut()
         if (enclosingTextFormControl(m_frame.selection().start()))
             Pasteboard::createForCopyAndPaste()->writePlainText(selectedTextForClipboard(), canSmartCopyOrDelete() ? Pasteboard::CanSmartReplace : Pasteboard::CannotSmartReplace);
         else {
-#if (PLATFORM(MAC) && !PLATFORM(IOS)) || PLATFORM(EFL)
+#if PLATFORM(MAC) || PLATFORM(EFL)
             writeSelectionToPasteboard(*Pasteboard::createForCopyAndPaste());
 #else
             // FIXME: Convert all other platforms to match Mac and delete this.
@@ -1174,12 +1170,12 @@ void Editor::simplifyMarkup(Node* startNode, Node* endNode)
     applyCommand(SimplifyMarkupCommand::create(document(), startNode, (endNode) ? NodeTraversal::next(endNode) : 0));
 }
 
-void Editor::copyURL(const KURL& url, const String& title)
+void Editor::copyURL(const URL& url, const String& title)
 {
     copyURL(url, title, *Pasteboard::createForCopyAndPaste());
 }
 
-void Editor::copyURL(const KURL& url, const String& title, Pasteboard& pasteboard)
+void Editor::copyURL(const URL& url, const String& title, Pasteboard& pasteboard)
 {
     PasteboardURL pasteboardURL;
     pasteboardURL.url = url;
@@ -1198,11 +1194,11 @@ void Editor::copyImage(const HitTestResult& result)
     if (!element)
         return;
 
-    KURL url = result.absoluteLinkURL();
+    URL url = result.absoluteLinkURL();
     if (url.isEmpty())
         url = result.absoluteImageURL();
 
-#if (PLATFORM(MAC) && !PLATFORM(IOS)) || PLATFORM(EFL)
+#if PLATFORM(MAC) || PLATFORM(EFL)
     writeImageToPasteboard(*Pasteboard::createForCopyAndPaste(), *element, url, result.altDisplayString());
 #else
     Pasteboard::createForCopyAndPaste()->writeImage(element, url, result.altDisplayString());
@@ -1442,7 +1438,7 @@ WritingDirection Editor::baseWritingDirectionForSelectionStart() const
     if (!node)
         return result;
 
-    RenderObject* renderer = node->renderer();
+    auto renderer = node->renderer();
     if (!renderer)
         return result;
 
@@ -2343,7 +2339,7 @@ void Editor::markAndReplaceFor(PassRefPtr<SpellCheckRequest> request, const Vect
 
                 if (AXObjectCache* cache = m_frame.document()->existingAXObjectCache()) {
                     if (Element* root = m_frame.selection().selection().rootEditableElement())
-                        cache->postNotification(root, AXObjectCache::AXAutocorrectionOccured, true);
+                        cache->postNotification(root, AXObjectCache::AXAutocorrectionOccured);
                 }
 
                 // Skip all other results for the replaced text.

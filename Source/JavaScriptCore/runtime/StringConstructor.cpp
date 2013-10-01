@@ -48,16 +48,16 @@ const ClassInfo StringConstructor::s_info = { "Function", &InternalFunction::s_i
 
 STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(StringConstructor);
 
-StringConstructor::StringConstructor(JSGlobalObject* globalObject, Structure* structure)
-    : InternalFunction(globalObject, structure)
+StringConstructor::StringConstructor(VM& vm, Structure* structure)
+    : InternalFunction(vm, structure)
 {
 }
 
-void StringConstructor::finishCreation(ExecState* exec, StringPrototype* stringPrototype)
+void StringConstructor::finishCreation(VM& vm, StringPrototype* stringPrototype)
 {
-    Base::finishCreation(exec->vm(), stringPrototype->classInfo()->className);
-    putDirectWithoutTransition(exec->vm(), exec->propertyNames().prototype, stringPrototype, ReadOnly | DontEnum | DontDelete);
-    putDirectWithoutTransition(exec->vm(), exec->propertyNames().length, jsNumber(1), ReadOnly | DontEnum | DontDelete);
+    Base::finishCreation(vm, stringPrototype->classInfo()->className);
+    putDirectWithoutTransition(vm, vm.propertyNames->prototype, stringPrototype, ReadOnly | DontEnum | DontDelete);
+    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(1), ReadOnly | DontEnum | DontDelete);
 }
 
 bool StringConstructor::getOwnPropertySlot(JSObject* object, ExecState* exec, PropertyName propertyName, PropertySlot &slot)

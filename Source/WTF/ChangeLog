@@ -1,3 +1,378 @@
+2013-09-30  Sam Weinig  <sam@webkit.org>
+
+        Remove support for DOMFileSystem
+        https://bugs.webkit.org/show_bug.cgi?id=122137
+
+        Reviewed by Anders Carlsson.
+
+        * wtf/FeatureDefines.h:
+
+2013-09-30  Benjamin Poulain  <benjamin@webkit.org>
+
+        Remove the code guarded by STYLE_SCOPED
+        https://bugs.webkit.org/show_bug.cgi?id=122123
+
+        Reviewed by Anders Carlsson.
+
+        * wtf/FeatureDefines.h:
+
+2013-09-28  Mark Rowe  <mrowe@apple.com>
+
+        Take Xcode's advice and enable some extra warnings.
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/Base.xcconfig:
+        * WTF.xcodeproj/project.pbxproj:
+
+2013-09-28  Mark Rowe  <mrowe@apple.com>
+
+        <rdar://problem/15079224> WTF fails to build with newer versions of clang.
+
+        Reviewed by Sam Weinig.
+
+        * wtf/DateMath.cpp: Remove some unused constants.
+        * wtf/FastMalloc.cpp: #if some constants and functions that are unused in some configurations.
+        Remove a function that's unused on all platforms.
+        * wtf/TCSystemAlloc.cpp: Remove some unused constants.
+        (TCMalloc_SystemRelease): Remove an if whose body is never executed.
+        * wtf/dtoa.cpp: #if things such that storeInc is only defined when USE_LONG_LONG is undefined.
+        Remove an unused constant.
+
+2013-09-27  Thiago de Barros Lacerda  <thiago.lacerda@openbossa.org>
+
+        [Nix] Updating Nix trunk files
+        https://bugs.webkit.org/show_bug.cgi?id=121752
+
+        Reviewed by Benjamin Poulain.
+
+        * wtf/nix/FeatureDefinesNix.h:
+
+2013-09-06  Jer Noble  <jer.noble@apple.com>
+
+        [Mac] Implement the media controls in JavaScript.
+        https://bugs.webkit.org/show_bug.cgi?id=120895
+
+        Reviewed by Dean Jackson.
+
+        Define and turn on ENABLE_MEDIA_CONTROLS_SCRIPT.
+
+        * wtf/FeatureDefines.h:
+
+2013-09-27  Gustavo Noronha Silva  <gns@gnome.org>
+
+        [GCC] Fix build with gcc < 4.8.1, which does not have is_trivially_destructible
+        https://bugs.webkit.org/show_bug.cgi?id=121999
+
+        Reviewed by Benjamin Poulain.
+
+        * wtf/StdLibExtras.h:
+
+2013-09-26  Anders Carlsson  <andersca@apple.com>
+
+        "Build fix".
+
+        We can't use std::move. Explicitly destroy the old value and then construct the new in place.
+
+        * wtf/HashTable.h:
+
+2013-09-26  Anders Carlsson  <andersca@apple.com>
+
+        Use the move assignment operator when reinserting values in the hash map
+        https://bugs.webkit.org/show_bug.cgi?id=122003
+
+        Reviewed by Alexey Proskuryakov.
+
+        Using the move assignment operator ensures that the existing values will be destroyed correctly.
+
+        * wtf/HashTable.h:
+
+2013-09-26  Brent Fulgham  <bfulgham@apple.com>
+
+        [Windows] Work around missing C++11 features of MSVC by providing an implementation for
+        std::is_trivially_destructible based on the existing std::has_trivial_destructor.
+
+        Rubber-stamped by Anders Carlsson.
+
+        * wtf/StdLibExtras.h: Add implementation for is_trivially_destructable for MSVC 2010 and prior.
+
+2013-09-26  Anders Carlsson  <andersca@apple.com>
+
+        Remove needsDestruction from vector and hash traits
+        https://bugs.webkit.org/show_bug.cgi?id=121983
+
+        Reviewed by Sam Weinig.
+
+        For Vector, use std::is_trivially_destructible to determine whether to call the destructor.
+        For HashTable, always call the destructor; if it is trivial then no code will be generated for it and the loops will be folded away. 
+
+        Removing this does break the ability to store objects with non-trivial destructors in vectors and hash maps
+        and have their destructors not be called when removed, but we've never used this feature in WebKit so the extra
+        code complexity is not worth it.
+
+        * wtf/HashTable.h:
+        (WTF::::deallocateTable):
+        * wtf/HashTraits.h:
+        * wtf/Vector.h:
+        (WTF::VectorTypeOperations::destruct):
+        * wtf/VectorTraits.h:
+
+2013-09-26  Anders Carlsson  <andersca@apple.com>
+
+        Build fixes.
+
+        Fix a paste-o.
+
+        * wtf/StdLibExtras.h:
+        (std::make_unique):
+
+2013-09-26  Anders Carlsson  <andersca@apple.com>
+
+        Remove the hash table mover
+        https://bugs.webkit.org/show_bug.cgi?id=121980
+
+        Reviewed by Andreas Kling.
+
+        Use std::move instead.
+
+        * wtf/HashTable.h:
+
+2013-09-26  Anders Carlsson  <andersca@apple.com>
+
+        Change a couple of HashMap value types from OwnPtr to std::unique_ptr
+        https://bugs.webkit.org/show_bug.cgi?id=121973
+
+        Reviewed by Andreas Kling.
+
+        * wtf/RefPtrHashMap.h:
+        Add a missing std::forward.
+
+        * wtf/StdLibExtras.h:
+        (std::make_unique):
+        Add more overloads.
+
+2013-09-26  Julien Brianceau  <jbriance@cisco.com>
+
+        [Qt] Remove PassTraits.h from WTF.pro.
+        https://bugs.webkit.org/show_bug.cgi?id=121946
+
+        Reviewed by Andreas Kling.
+
+        * WTF.pro: Remove PassTraits.h as this file disappeared in r156298.
+
+2013-09-25  Patrick Gansterer  <paroga@webkit.org>
+
+        Fix compilation with new MSVC compiler for Windows CE
+        https://bugs.webkit.org/show_bug.cgi?id=121914
+
+        Reviewed by Darin Adler.
+
+        Remove code to support older Windows CE versions, since those old
+        versions do not support C+11, which is required in the meantime.
+
+        * wtf/Atomics.h:
+        * wtf/Platform.h:
+
+2013-09-25  Anders Carlsson  <andersca@apple.com>
+
+        Move KeyValuePairTraits inside HashMap
+        https://bugs.webkit.org/show_bug.cgi?id=121931
+
+        Reviewed by Sam Weinig.
+
+        Also rename the ValueType typedef to KeyValuePairType since it's always a key value pair.
+
+        * wtf/HashMap.h:
+        (WTF::HashMap::KeyValuePairTraits::isEmptyValue):
+        (WTF::HashMap::find):
+        (WTF::HashMap::contains):
+
+2013-09-25  Anders Carlsson  <andersca@apple.com>
+
+        Un-indent HashMap.h.
+
+        Rubber-stamped by Andreas Kling.
+
+        * wtf/HashMap.h:
+
+2013-09-25  Anders Carlsson  <andersca@apple.com>
+
+        Un-indent HashTraits.h.
+
+        Rubber-stamped by Andreas Kling.
+
+        * wtf/HashTraits.h:
+
+2013-09-25  Patrick Gansterer  <paroga@webkit.org>
+
+        Fix template deduction for CollatorDefault
+
+        * wtf/unicode/CollatorDefault.cpp:
+        (WTF::Collator::userDefault): Use nullptr instead of 0.
+
+2013-09-24  Anders Carlsson  <andersca@apple.com>
+
+        Remove encoder create functions
+        https://bugs.webkit.org/show_bug.cgi?id=121853
+
+        Reviewed by Sam Weinig.
+
+        Add a variadic version of createOwned.
+
+        * wtf/OwnPtr.h:
+        (WTF::createOwned):
+
+2013-09-24  Mark Rowe  <mrowe@apple.com>
+
+        <rdar://problem/14971518> WebKit should build against the Xcode default toolchain when targeting OS X 10.8
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/Base.xcconfig:
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        Remove WTF_USE_SCROLLBAR_PAINTER #define
+        https://bugs.webkit.org/show_bug.cgi?id=121819
+
+        Reviewed by Sam Weinig.
+
+        All our supported systems use the scrollbar painter now, so get rid of the #ifdef.
+
+        * wtf/Platform.h:
+
+2013-09-23  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r156307.
+        http://trac.webkit.org/changeset/156307
+        https://bugs.webkit.org/show_bug.cgi?id=121817
+
+        Broke the build, and crashes the compiler (Requested by ap on
+        #webkit).
+
+        * wtf/ListDump.h:
+        (WTF::lessThan):
+        (WTF::sortedListDump):
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        Test the waters and begin using lambdas
+        https://bugs.webkit.org/show_bug.cgi?id=121809
+
+        Reviewed by Andreas Kling.
+
+        * wtf/ListDump.h:
+        (WTF::sortedListDump):
+        Use std::less instead of a custom lessThan function.
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        ListHashSet::removeLast should only remove one element.
+        
+        * wtf/ListHashSet.h:
+        (WTF::ListHashSet::removeLast):
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        Add hash traits for std::unique_ptr
+        https://bugs.webkit.org/show_bug.cgi?id=121807
+
+        Reviewed by Antti Koivisto.
+
+        Also, convert the thread map over to using std::unique_ptr instead of OwnPtr.
+
+        * wtf/HashMap.h:
+        Remove unnecessary typedefs and add missing calls to std::forward.
+
+        * wtf/HashTraits.h:
+        Add hash trait for std::unique_ptr.
+        
+        * wtf/RefPtrHashMap.h:
+        Use std::add_lvalue_reference.
+
+        * wtf/ThreadingPthreads.cpp:
+        (WTF::establishIdentifierForPthreadHandle):
+        Change ThreadMap to be a hash map from ThreadIdentifier to std::unique_ptr<PthreadState>.
+
+2013-09-23  Patrick Gansterer  <paroga@webkit.org>
+
+        use NOMINMAX instead of #define min min
+        https://bugs.webkit.org/show_bug.cgi?id=73563
+
+        Reviewed by Brent Fulgham.
+
+        Use NOMINMAX instead of #define min/max as a cleaner
+        way of ensuring that Windows system header files don't
+        define min/max as macro in the first place.
+
+        * config.h:
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        Remove PassTraits.h
+        https://bugs.webkit.org/show_bug.cgi?id=121805
+
+        Reviewed by Andreas Kling.
+
+        We no longer need PassTraits.h, get rid of it.
+
+        * GNUmakefile.list.am:
+        * WTF.vcxproj/WTF.vcxproj:
+        * WTF.vcxproj/WTF.vcxproj.filters:
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/CMakeLists.txt:
+        * wtf/PassTraits.h: Removed.
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        ListHashSet should work with move-only types
+        https://bugs.webkit.org/show_bug.cgi?id=121802
+
+        Reviewed by Andreas Kling.
+
+        Add rvalue reference overloads and calls to std::forward and std::move where appropriate.
+
+        * wtf/ListHashSet.h:
+        (WTF::::removeFirst):
+        Implement this in terms of takeFirst.
+
+        (WTF::::takeFirst):
+        Look up the iterator before we move out the value so we won't break the hash invariant.
+        
+        (WTF::::removeLast):
+        Implement this in terms of takeLast.
+
+        (WTF::::takeLast):
+        Look up the iterator before we move out the value so we won't break the hash invariant.
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        Clean up ListHashSet
+        https://bugs.webkit.org/show_bug.cgi?id=121797
+
+        Reviewed by Antti Koivisto.
+
+        * wtf/ListHashSet.h:
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        ListHashSet should use std::reverse_iterator for reverse iterators
+        https://bugs.webkit.org/show_bug.cgi?id=121795
+
+        Reviewed by Antti Koivisto.
+
+        Get rid of the custom reverse iterators and just use std::reverse_iterator instead.
+
+        * wtf/ListHashSet.h:
+
+2013-09-23  Anders Carlsson  <andersca@apple.com>
+
+        De-indent ListHashSet in preparation of more changes.
+
+        Rubber-stamped by Sam Weinig.
+
+        * wtf/ListHashSet.h:
+
 2013-09-23  Patrick Gansterer  <paroga@webkit.org>
 
         Cleanup CMake files in WTF

@@ -108,6 +108,8 @@ class PlatformContextCairo;
 class GraphicsContext;
 #endif
 
+typedef WTF::HashMap<CString, uint64_t> ShaderNameHash;
+
 struct ActiveInfo {
     String name;
     GC3Denum type;
@@ -1024,9 +1026,11 @@ private:
     String originalSymbolName(Platform3DObject program, ANGLEShaderSymbolType, const String& name);
 
     ANGLEWebKitBridge m_compiler;
+
+    OwnPtr<ShaderNameHash> nameHashMapForShaders;
 #endif
 
-#if PLATFORM(BLACKBERRY) || (PLATFORM(QT) && defined(QT_OPENGL_ES_2)) || ((PLATFORM(GTK) || PLATFORM(EFL) || PLATFORM(WIN)) && USE(OPENGL_ES_2))
+#if PLATFORM(BLACKBERRY) || (PLATFORM(QT) && defined(QT_OPENGL_ES_2)) || ((PLATFORM(GTK) || PLATFORM(EFL) || PLATFORM(WIN) || PLATFORM(NIX)) && USE(OPENGL_ES_2))
     friend class Extensions3DOpenGLES;
     OwnPtr<Extensions3DOpenGLES> m_extensions;
 #else

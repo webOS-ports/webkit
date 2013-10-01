@@ -68,6 +68,7 @@
 #include "NodeTraversal.h"
 #include "Page.h"
 #include "ProgressTracker.h"
+#include "RenderView.h"
 #include "SVGElement.h"
 #include "SVGNames.h"
 #include "Text.h"
@@ -131,7 +132,7 @@ void AccessibilityNodeObject::childrenChanged()
     if (!node() && !renderer())
         return;
 
-    axObjectCache()->postNotification(this, document(), AXObjectCache::AXChildrenChanged, true);
+    axObjectCache()->postNotification(this, document(), AXObjectCache::AXChildrenChanged);
 
     // Go up the accessibility parent chain, but only if the element already exists. This method is
     // called during render layouts, minimal work should be done. 
@@ -145,11 +146,11 @@ void AccessibilityNodeObject::childrenChanged()
 
         // If this element supports ARIA live regions, then notify the AT of changes.
         if (parent->supportsARIALiveRegion())
-            axObjectCache()->postNotification(parent, parent->document(), AXObjectCache::AXLiveRegionChanged, true);
+            axObjectCache()->postNotification(parent, parent->document(), AXObjectCache::AXLiveRegionChanged);
         
         // If this element is an ARIA text control, notify the AT of changes.
         if (parent->isARIATextControl() && !parent->isNativeTextControl() && !parent->node()->rendererIsEditable())
-            axObjectCache()->postNotification(parent, parent->document(), AXObjectCache::AXValueChanged, true);
+            axObjectCache()->postNotification(parent, parent->document(), AXObjectCache::AXValueChanged);
     }
 }
 
@@ -422,7 +423,7 @@ bool AccessibilityNodeObject::canvasHasFallbackContent() const
     // If it has any children that are elements, we'll assume it might be fallback
     // content. If it has no children or its only children are not elements
     // (e.g. just text nodes), it doesn't have fallback content.
-    return elementChildren(canvasElement).begin() != elementChildren(canvasElement).end();
+    return elementChildren(canvasElement).first();
 }
 
 bool AccessibilityNodeObject::isImageButton() const
@@ -1054,7 +1055,7 @@ void AccessibilityNodeObject::changeValueByStep(bool increase)
 
     setValue(String::number(value));
 
-    axObjectCache()->postNotification(node(), AXObjectCache::AXValueChanged, true);
+    axObjectCache()->postNotification(node(), AXObjectCache::AXValueChanged);
 }
 
 void AccessibilityNodeObject::changeValueByPercent(float percentChange)
@@ -1065,7 +1066,7 @@ void AccessibilityNodeObject::changeValueByPercent(float percentChange)
     value += range * (percentChange / 100);
     setValue(String::number(value));
 
-    axObjectCache()->postNotification(node(), AXObjectCache::AXValueChanged, true);
+    axObjectCache()->postNotification(node(), AXObjectCache::AXValueChanged);
 }
 
 bool AccessibilityNodeObject::isGenericFocusableElement() const
@@ -1579,6 +1580,12 @@ String AccessibilityNodeObject::textUnderElement(AccessibilityTextUnderElementMo
     Node* node = this->node();
     if (node && node->isTextNode())
         return toText(node)->wholeText();
+
+    // The render tree should be stable before going ahead. Otherwise, further uses of the
+    // TextIterator will force a layout update, potentially altering the accessibility tree
+    // and leading to crashes in the loop that computes the result text from the children.
+    ASSERT(!document()->renderView()->layoutState());
+    ASSERT(!document()->childNeedsStyleRecalc());
 
     StringBuilder builder;
     for (AccessibilityObject* child = firstChild(); child; child = child->nextSibling()) {

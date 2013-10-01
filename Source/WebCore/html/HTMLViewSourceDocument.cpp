@@ -49,11 +49,11 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-HTMLViewSourceDocument::HTMLViewSourceDocument(Frame* frame, const KURL& url, const String& mimeType)
+HTMLViewSourceDocument::HTMLViewSourceDocument(Frame* frame, const URL& url, const String& mimeType)
     : HTMLDocument(frame, url)
     , m_type(mimeType)
 {
-    styleSheetCollection()->setUsesBeforeAfterRulesOverride(true);
+    styleSheetCollection().setUsesBeforeAfterRulesOverride(true);
     setIsViewSource(true);
 
     setCompatibilityMode(QuirksMode);

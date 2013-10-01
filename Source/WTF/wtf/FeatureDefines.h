@@ -474,10 +474,6 @@
 #define ENABLE_FAST_MOBILE_SCROLLING 0
 #endif
 
-#if !defined(ENABLE_FILE_SYSTEM)
-#define ENABLE_FILE_SYSTEM 0
-#endif
-
 #if !defined(ENABLE_FILTERS)
 #define ENABLE_FILTERS 0
 #endif
@@ -614,6 +610,10 @@
 
 #if !defined(ENABLE_MEDIA_CAPTURE)
 #define ENABLE_MEDIA_CAPTURE 0
+#endif
+
+#if !defined(ENABLE_MEDIA_CONTROLS_SCRIPT)
+#define ENABLE_MEDIA_CONTROLS_SCRIPT 0
 #endif
 
 #if !defined(ENABLE_MEDIA_SOURCE)
@@ -756,10 +756,6 @@
 
 #if !defined(ENABLE_SQL_DATABASE)
 #define ENABLE_SQL_DATABASE 1
-#endif
-
-#if !defined(ENABLE_STYLE_SCOPED)
-#define ENABLE_STYLE_SCOPED 0
 #endif
 
 #if !defined(ENABLE_SUBPIXEL_LAYOUT)

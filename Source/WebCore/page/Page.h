@@ -75,6 +75,7 @@ class HaltablePlugin;
 class HistoryItem;
 class InspectorClient;
 class InspectorController;
+class MainFrame;
 class MediaCanStartListener;
 class Node;
 class PageActivityAssertionToken;
@@ -161,8 +162,8 @@ public:
     EditorClient* editorClient() const { return m_editorClient; }
     PlugInClient* plugInClient() const { return m_plugInClient; }
 
-    Frame& mainFrame() const { return *m_mainFrame; }
-    bool frameIsMainFrame(const Frame* frame) { return frame == m_mainFrame.get(); }
+    MainFrame& mainFrame() { ASSERT(m_mainFrame); return *m_mainFrame; }
+    const MainFrame& mainFrame() const { ASSERT(m_mainFrame); return *m_mainFrame; }
 
     bool openedByDOM() const;
     void setOpenedByDOM();
@@ -281,6 +282,7 @@ public:
 
     bool shouldSuppressScrollbarAnimations() const { return m_suppressScrollbarAnimations; }
     void setShouldSuppressScrollbarAnimations(bool suppressAnimations);
+    void lockAllOverlayScrollbarsToHidden(bool lockOverlayScrollbars);
 
     bool rubberBandsAtBottom();
     void setRubberBandsAtBottom(bool);
@@ -393,8 +395,8 @@ public:
     void sawMediaEngine(const String& engineName);
     void resetSeenMediaEngines();
 
-    PageThrottler* pageThrottler() { return m_pageThrottler.get(); }
-    PassOwnPtr<PageActivityAssertionToken> createActivityToken();
+    PageThrottler& pageThrottler() { return *m_pageThrottler; }
+    std::unique_ptr<PageActivityAssertionToken> createActivityToken();
 
     PageConsole& console() { return *m_console; }
 
@@ -442,15 +444,15 @@ private:
     void throttleTimers();
     void unthrottleTimers();
 
-    const OwnPtr<Chrome> m_chrome;
-    const OwnPtr<DragCaretController> m_dragCaretController;
+    const std::unique_ptr<Chrome> m_chrome;
+    const std::unique_ptr<DragCaretController> m_dragCaretController;
 
 #if ENABLE(DRAG_SUPPORT)
-    const OwnPtr<DragController> m_dragController;
+    const std::unique_ptr<DragController> m_dragController;
 #endif
-    const OwnPtr<FocusController> m_focusController;
+    const std::unique_ptr<FocusController> m_focusController;
 #if ENABLE(CONTEXT_MENUS)
-    const OwnPtr<ContextMenuController> m_contextMenuController;
+    const std::unique_ptr<ContextMenuController> m_contextMenuController;
 #endif
 #if ENABLE(INSPECTOR)
     OwnPtr<InspectorController> m_inspectorController;
@@ -461,10 +463,10 @@ private:
     RefPtr<ScrollingCoordinator> m_scrollingCoordinator;
 
     const RefPtr<Settings> m_settings;
-    const OwnPtr<ProgressTracker> m_progress;
+    const std::unique_ptr<ProgressTracker> m_progress;
 
-    const OwnPtr<BackForwardController> m_backForwardController;
-    const RefPtr<Frame> m_mainFrame;
+    const std::unique_ptr<BackForwardController> m_backForwardController;
+    const RefPtr<MainFrame> m_mainFrame;
 
     mutable RefPtr<PluginData> m_pluginData;
 
@@ -500,7 +502,7 @@ private:
     mutable bool m_didLoadUserStyleSheet;
     mutable time_t m_userStyleSheetModificationTime;
 
-    OwnPtr<PageGroup> m_singlePageGroup;
+    std::unique_ptr<PageGroup> m_singlePageGroup;
     PageGroup* m_group;
 
     JSC::Debugger* m_debugger;
@@ -544,9 +546,8 @@ private:
     AlternativeTextClient* m_alternativeTextClient;
 
     bool m_scriptedAnimationsSuspended;
-    OwnPtr<PageThrottler> m_pageThrottler;
-
-    const OwnPtr<PageConsole> m_console;
+    const std::unique_ptr<PageThrottler> m_pageThrottler;
+    const std::unique_ptr<PageConsole> m_console;
 
     HashSet<String> m_seenPlugins;
     HashSet<String> m_seenMediaEngines;

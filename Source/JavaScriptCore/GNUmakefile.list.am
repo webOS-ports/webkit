@@ -127,6 +127,8 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/bytecode/GetByIdStatus.cpp \
 	Source/JavaScriptCore/bytecode/GetByIdStatus.h \
 	Source/JavaScriptCore/bytecode/HandlerInfo.h \
+	Source/JavaScriptCore/bytecode/InlineCallFrameSet.cpp \
+	Source/JavaScriptCore/bytecode/InlineCallFrameSet.h \
 	Source/JavaScriptCore/bytecode/Instruction.h \
 	Source/JavaScriptCore/bytecode/JumpTable.cpp \
 	Source/JavaScriptCore/bytecode/JumpTable.h \
@@ -165,6 +167,7 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/bytecode/UnlinkedCodeBlock.cpp \
 	Source/JavaScriptCore/bytecode/UnlinkedCodeBlock.h \
 	Source/JavaScriptCore/bytecode/ValueProfile.h \
+	Source/JavaScriptCore/bytecode/ValueRecovery.cpp \
 	Source/JavaScriptCore/bytecode/ValueRecovery.h \
 	Source/JavaScriptCore/bytecode/VirtualRegister.h \
 	Source/JavaScriptCore/bytecode/Watchpoint.cpp \
@@ -337,13 +340,9 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/dfg/DFGPredictionPropagationPhase.cpp \
 	Source/JavaScriptCore/dfg/DFGPredictionPropagationPhase.h \
 	Source/JavaScriptCore/dfg/DFGRegisterBank.h \
-	Source/JavaScriptCore/dfg/DFGRegisterSet.h \
-	Source/JavaScriptCore/dfg/DFGRepatch.cpp \
-	Source/JavaScriptCore/dfg/DFGRepatch.h \
 	Source/JavaScriptCore/dfg/DFGSafeToExecute.h \
 	Source/JavaScriptCore/dfg/DFGSaneStringGetByValSlowPathGenerator.h \
 	Source/JavaScriptCore/dfg/DFGScoreBoard.h \
-	Source/JavaScriptCore/dfg/DFGScratchRegisterAllocator.h \
 	Source/JavaScriptCore/dfg/DFGSilentRegisterSavePlan.h \
 	Source/JavaScriptCore/dfg/DFGSlowPathGenerator.h \
 	Source/JavaScriptCore/dfg/DFGSpeculativeJIT32_64.cpp \
@@ -517,7 +516,6 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/heap/TinyBloomFilter.h \
 	Source/JavaScriptCore/heap/MarkedSpace.cpp \
 	Source/JavaScriptCore/heap/MarkedSpace.h \
-	Source/JavaScriptCore/heap/PassWeak.h \
 	Source/JavaScriptCore/heap/Region.h \
 	Source/JavaScriptCore/heap/Strong.h \
 	Source/JavaScriptCore/heap/StrongInlines.h \
@@ -630,6 +628,9 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/jit/JITInlines.h \
 	Source/JavaScriptCore/jit/JITOpcodes32_64.cpp \
 	Source/JavaScriptCore/jit/JITOpcodes.cpp \
+	Source/JavaScriptCore/jit/JITOperationWrappers.h \
+	Source/JavaScriptCore/jit/JITOperations.cpp \
+	Source/JavaScriptCore/jit/JITOperations.h \
 	Source/JavaScriptCore/jit/JITPropertyAccess32_64.cpp \
 	Source/JavaScriptCore/jit/JITPropertyAccess.cpp \
 	Source/JavaScriptCore/jit/JITStubCall.h \
@@ -652,6 +653,9 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/jit/JSInterfaceJIT.h \
 	Source/JavaScriptCore/jit/JumpReplacementWatchpoint.cpp \
 	Source/JavaScriptCore/jit/JumpReplacementWatchpoint.h \
+	Source/JavaScriptCore/jit/Repatch.cpp \
+	Source/JavaScriptCore/jit/Repatch.h \
+	Source/JavaScriptCore/jit/ScratchRegisterAllocator.h \
 	Source/JavaScriptCore/jit/SlowPathCall.h \
 	Source/JavaScriptCore/jit/SpecializedThunkJIT.h \
 	Source/JavaScriptCore/jit/ThunkGenerator.h \

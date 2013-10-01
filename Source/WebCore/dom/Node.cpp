@@ -386,7 +386,7 @@ NodeRareData& Node::ensureRareData()
 
     NodeRareData* data;
     if (isElementNode())
-        data = ElementRareData::create(m_data.m_renderer).leakPtr();
+        data = ElementRareData::create(toRenderElement(m_data.m_renderer)).leakPtr();
     else
         data = NodeRareData::create(m_data.m_renderer).leakPtr();
     ASSERT(data);
@@ -1113,7 +1113,7 @@ PassRefPtr<Element> Node::querySelector(const AtomicString& selectors, Exception
         return 0;
     }
 
-    SelectorQuery* selectorQuery = document().selectorQueryCache().add(selectors, &document(), ec);
+    SelectorQuery* selectorQuery = document().selectorQueryCache().add(selectors, document(), ec);
     if (!selectorQuery)
         return 0;
     return selectorQuery->queryFirst(this);
@@ -1126,7 +1126,7 @@ PassRefPtr<NodeList> Node::querySelectorAll(const AtomicString& selectors, Excep
         return 0;
     }
 
-    SelectorQuery* selectorQuery = document().selectorQueryCache().add(selectors, &document(), ec);
+    SelectorQuery* selectorQuery = document().selectorQueryCache().add(selectors, document(), ec);
     if (!selectorQuery)
         return 0;
     return selectorQuery->queryAll(this);
@@ -1138,9 +1138,9 @@ Document *Node::ownerDocument() const
     return doc == this ? 0 : doc;
 }
 
-KURL Node::baseURI() const
+URL Node::baseURI() const
 {
-    return parentNode() ? parentNode()->baseURI() : KURL();
+    return parentNode() ? parentNode()->baseURI() : URL();
 }
 
 bool Node::isEqualNode(Node* other) const
@@ -1799,7 +1799,7 @@ void NodeListsNodeData::invalidateCaches(const QualifiedName* attrName)
         it->value->invalidateCache();
 }
 
-void Node::getSubresourceURLs(ListHashSet<KURL>& urls) const
+void Node::getSubresourceURLs(ListHashSet<URL>& urls) const
 {
     addSubresourceAttributeURLs(urls);
 }
@@ -2110,11 +2110,6 @@ bool Node::dispatchDOMActivateEvent(int detail, PassRefPtr<Event> underlyingEven
     return event->defaultHandled();
 }
 
-bool Node::dispatchKeyEvent(const PlatformKeyboardEvent& event)
-{
-    return EventDispatcher::dispatchEvent(this, KeyboardEventDispatchMediator::create(KeyboardEvent::create(event, document().defaultView())));
-}
-
 bool Node::dispatchMouseEvent(const PlatformMouseEvent& event, const AtomicString& eventType,
     int detail, Node* relatedTarget)
 {
@@ -2154,11 +2149,6 @@ bool Node::dispatchBeforeLoadEvent(const String& sourceURL)
     RefPtr<BeforeLoadEvent> beforeLoadEvent = BeforeLoadEvent::create(sourceURL);
     dispatchEvent(beforeLoadEvent.get());
     return !beforeLoadEvent->defaultPrevented();
-}
-
-bool Node::dispatchWheelEvent(const PlatformWheelEvent& event)
-{
-    return EventDispatcher::dispatchEvent(this, WheelEventDispatchMediator::create(event, document().defaultView()));
 }
 
 void Node::dispatchInputEvent()
@@ -2202,7 +2192,7 @@ void Node::defaultEventHandler(Event* event)
 
             if (renderer) {
                 if (Frame* frame = document().frame())
-                    frame->eventHandler().startPanScrolling(renderer);
+                    frame->eventHandler().startPanScrolling(toRenderBox(renderer));
             }
         }
 #endif
@@ -2335,34 +2325,6 @@ void Node::updateAncestorConnectedSubframeCountForInsertion() const
     for (Node* node = parentOrShadowHostNode(); node; node = node->parentOrShadowHostNode())
         node->incrementConnectedSubframeCount(count);
 }
-
-#if ENABLE(STYLE_SCOPED)
-// FIXME: What is this code doing in Node, srsly?
-void Node::registerScopedHTMLStyleChild()
-{
-    setHasScopedHTMLStyleChild(true);
-}
-
-void Node::unregisterScopedHTMLStyleChild()
-{
-    ASSERT(hasScopedHTMLStyleChild());
-    setHasScopedHTMLStyleChild(numberOfScopedHTMLStyleChildren());
-}
-
-size_t Node::numberOfScopedHTMLStyleChildren() const
-{
-    if (!isContainerNode())
-        return 0;
-    size_t count = 0;
-    auto styleDescendants = descendantsOfType<HTMLStyleElement>(toContainerNode(this));
-    for (auto style = styleDescendants.begin(), end = styleDescendants.end(); style != end; ++style) {
-        if (style->isRegisteredAsScoped())
-            count++;
-    }
-
-    return count;
-}
-#endif
 
 } // namespace WebCore
 

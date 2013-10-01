@@ -104,12 +104,6 @@ protected:
 public:
     static RenderBlock* createAnonymous(Document&);
 
-    RenderObject* firstChild() const { return m_children.firstChild(); }
-    RenderObject* lastChild() const { return m_children.lastChild(); }
-
-    virtual const RenderObjectChildList* children() const OVERRIDE FINAL { return &m_children; }
-    virtual RenderObjectChildList* children() OVERRIDE FINAL { return &m_children; }
-
     bool beingDestroyed() const { return m_beingDestroyed; }
 
     // These two functions are overridden for inline-block.
@@ -279,7 +273,7 @@ public:
     bool paintsContinuationOutline(RenderInline*);
 
     virtual RenderBoxModelObject* virtualContinuation() const OVERRIDE FINAL { return continuation(); }
-    bool isAnonymousBlockContinuation() const { return continuation() && isAnonymousBlock(); }
+    bool isAnonymousBlockContinuation() const { return isAnonymousBlock() && continuation(); }
     RenderInline* inlineElementContinuation() const;
     RenderBlock* blockElementContinuation() const;
 
@@ -292,7 +286,7 @@ public:
     RenderBlock* createAnonymousBlock(EDisplay display = BLOCK) const { return createAnonymousWithParentRendererAndDisplay(this, display); }
     RenderBlock* createAnonymousColumnsBlock() const { return createAnonymousColumnsWithParentRenderer(this); }
     RenderBlock* createAnonymousColumnSpanBlock() const { return createAnonymousColumnSpanWithParentRenderer(this); }
-    static void collapseAnonymousBoxChild(RenderBlock* parent, RenderObject* child);
+    static void collapseAnonymousBoxChild(RenderBlock* parent, RenderBlock* child);
 
     virtual RenderBox* createAnonymousBoxWithSameTypeAs(const RenderObject* parent) const OVERRIDE;
 
@@ -303,24 +297,24 @@ public:
     
     static void appendRunsForObject(BidiRunList<BidiRun>&, int start, int end, RenderObject*, InlineBidiResolver&);
 
-    static TextRun constructTextRun(RenderObject* context, const Font& font, const String& string, RenderStyle* style,
+    static TextRun constructTextRun(RenderObject* context, const Font&, const String&, const RenderStyle&,
         TextRun::ExpansionBehavior = TextRun::AllowTrailingExpansion | TextRun::ForbidLeadingExpansion, TextRunFlags = DefaultTextRunFlags);
 
-    static TextRun constructTextRun(RenderObject* context, const Font& font, const RenderText* text, RenderStyle* style,
+    static TextRun constructTextRun(RenderObject* context, const Font&, const RenderText*, const RenderStyle&,
         TextRun::ExpansionBehavior = TextRun::AllowTrailingExpansion | TextRun::ForbidLeadingExpansion);
 
-    static TextRun constructTextRun(RenderObject* context, const Font& font, const RenderText* text, unsigned offset, unsigned length, RenderStyle* style,
+    static TextRun constructTextRun(RenderObject* context, const Font&, const RenderText*, unsigned offset, unsigned length, const RenderStyle&,
         TextRun::ExpansionBehavior = TextRun::AllowTrailingExpansion | TextRun::ForbidLeadingExpansion);
 
-    static TextRun constructTextRun(RenderObject* context, const Font& font, const RenderText* text, unsigned offset, RenderStyle* style,
+    static TextRun constructTextRun(RenderObject* context, const Font&, const RenderText*, unsigned offset, const RenderStyle&,
         TextRun::ExpansionBehavior = TextRun::AllowTrailingExpansion | TextRun::ForbidLeadingExpansion);
 
 #if ENABLE(8BIT_TEXTRUN)
-    static TextRun constructTextRun(RenderObject* context, const Font& font, const LChar* characters, int length, RenderStyle* style,
+    static TextRun constructTextRun(RenderObject* context, const Font&, const LChar* characters, int length, const RenderStyle&,
         TextRun::ExpansionBehavior = TextRun::AllowTrailingExpansion | TextRun::ForbidLeadingExpansion);
 #endif
 
-    static TextRun constructTextRun(RenderObject* context, const Font& font, const UChar* characters, int length, RenderStyle* style,
+    static TextRun constructTextRun(RenderObject* context, const Font&, const UChar* characters, int length, const RenderStyle&,
         TextRun::ExpansionBehavior = TextRun::AllowTrailingExpansion | TextRun::ForbidLeadingExpansion);
 
     ColumnInfo* columnInfo() const;
@@ -342,17 +336,6 @@ public:
     // direction (so an x-offset in vertical text and a y-offset for horizontal text).
     LayoutUnit pageLogicalOffset() const { return m_rareData ? m_rareData->m_pageLogicalOffset : LayoutUnit(); }
     void setPageLogicalOffset(LayoutUnit);
-
-    RootInlineBox* lineGridBox() const { return m_rareData ? m_rareData->m_lineGridBox : 0; }
-    void setLineGridBox(RootInlineBox* box)
-    {
-        if (!m_rareData)
-            m_rareData = adoptPtr(new RenderBlockRareData());
-        if (m_rareData->m_lineGridBox)
-            m_rareData->m_lineGridBox->destroy(renderArena());
-        m_rareData->m_lineGridBox = box;
-    }
-    void layoutLineGridBox();
 
     // Accessors for logical width/height and margins in the containing block's block-flow direction.
     enum ApplyLayoutDeltaMode { ApplyLayoutDelta, DoNotApplyLayoutDelta };
@@ -571,13 +554,12 @@ private:
 
     virtual bool isRenderBlock() const OVERRIDE FINAL { return true; }
     virtual bool isInlineBlockOrInlineTable() const OVERRIDE FINAL { return isInline() && isReplaced(); }
+    virtual bool canHaveChildren() const OVERRIDE { return true; }
 
     void makeChildrenNonInline(RenderObject* insertionPoint = 0);
     virtual void removeLeftoverAnonymousBlock(RenderBlock* child);
 
     void moveAllChildrenIncludingFloatsTo(RenderBlock* toBlock, bool fullRemoveInsert);
-
-    virtual void dirtyLinesFromChangedChild(RenderObject* child) OVERRIDE FINAL { m_lineBoxes.dirtyLinesFromChangedChild(this, child); }
 
     void addChildToContinuation(RenderObject* newChild, RenderObject* beforeChild);
     void addChildIgnoringContinuation(RenderObject* newChild, RenderObject* beforeChild);
@@ -622,17 +604,17 @@ private:
     LayoutUnit xPositionForFloatIncludingMargin(const FloatingObject* child) const
     {
         if (isHorizontalWritingMode())
-            return child->x() + child->renderer()->marginLeft();
+            return child->x() + child->renderer().marginLeft();
         else
-            return child->x() + marginBeforeForChild(child->renderer());
+            return child->x() + marginBeforeForChild(&child->renderer());
     }
         
     LayoutUnit yPositionForFloatIncludingMargin(const FloatingObject* child) const
     {
         if (isHorizontalWritingMode())
-            return child->y() + marginBeforeForChild(child->renderer());
+            return child->y() + marginBeforeForChild(&child->renderer());
         else
-            return child->y() + child->renderer()->marginTop();
+            return child->y() + child->renderer().marginTop();
     }
 
     LayoutPoint computeLogicalLocationForFloat(const FloatingObject*, LayoutUnit logicalTopOffset) const;
@@ -687,7 +669,7 @@ private:
     LayoutUnit addOverhangingFloats(RenderBlock* child, bool makeChildPaintOtherFloats);
 
     LayoutUnit lowestFloatLogicalBottom(FloatingObject::Type = FloatingObject::FloatLeftRight) const; 
-    LayoutUnit nextFloatLogicalBottomBelow(LayoutUnit) const;
+    LayoutUnit nextFloatLogicalBottomBelow(LayoutUnit, ShapeOutsideFloatOffsetMode = ShapeOutsideFloatMarginBoxOffset) const;
 
     void updateLocalFloatingObjectsForPaintingContainer(RenderBox* floatToUpdate, bool& didFindPaintContainer);
     void updateFloatingObjectsPaintingContainer(RenderBox* floatToUpdate, bool& didFindPaintContainer);
@@ -711,7 +693,7 @@ private:
     virtual LayoutRect rectWithOutlineForRepaint(const RenderLayerModelObject* repaintContainer, LayoutUnit outlineWidth) const OVERRIDE FINAL;
     virtual RenderStyle* outlineStyleForRepaint() const OVERRIDE FINAL;
     
-    virtual RenderObject* hoverAncestor() const OVERRIDE FINAL;
+    virtual RenderElement* hoverAncestor() const OVERRIDE FINAL;
     virtual void updateDragState(bool dragOn) OVERRIDE FINAL;
     virtual void childBecameNonInline(RenderObject* child) OVERRIDE FINAL;
 
@@ -859,14 +841,11 @@ public:
         RenderBlockRareData() 
             : m_paginationStrut(0)
             , m_pageLogicalOffset(0)
-            , m_lineGridBox(0)
         { 
         }
 
         LayoutUnit m_paginationStrut;
         LayoutUnit m_pageLogicalOffset;
-        
-        RootInlineBox* m_lineGridBox;
 
 #if ENABLE(CSS_SHAPES)
         OwnPtr<ShapeInsideInfo> m_shapeInsideInfo;
@@ -878,7 +857,6 @@ protected:
     OwnPtr<FloatingObjects> m_floatingObjects;
     OwnPtr<RenderBlockRareData> m_rareData;
 
-    RenderObjectChildList m_children;
     RenderLineBoxList m_lineBoxes;   // All of the root line boxes created for this block flow.  For example, <div>Hello<br>world.</div> will have two total lines for the <div>.
 
     mutable signed m_lineHeight : 27;

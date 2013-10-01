@@ -46,10 +46,8 @@
 #include "EventHandler.h"
 #include "ExceptionCode.h"
 #include "FormController.h"
-#include "Frame.h"
 #include "FrameLoader.h"
 #include "FrameView.h"
-#include "HTMLContentElement.h"
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
 #include "HTMLSelectElement.h"
@@ -69,6 +67,7 @@
 #include "InternalSettings.h"
 #include "IntRect.h"
 #include "Language.h"
+#include "MainFrame.h"
 #include "MallocStatistics.h"
 #include "MemoryCache.h"
 #include "MemoryInfo.h"
@@ -78,7 +77,6 @@
 #include "Range.h"
 #include "RenderEmbeddedObject.h"
 #include "RenderMenuList.h"
-#include "RenderObject.h"
 #include "RenderTreeAsText.h"
 #include "RenderView.h"
 #include "RuntimeEnabledFeatures.h"
@@ -151,6 +149,10 @@
 #if PLATFORM(QT)
 #include "NetworkingContext.h"
 #include <QNetworkAccessManager>
+#endif
+
+#if ENABLE(MEDIA_STREAM)
+#include "MockMediaStreamCenter.h"
 #endif
 
 namespace WebCore {
@@ -290,6 +292,10 @@ Internals::Internals(Document* document)
     if (document && document->page())
         document->page()->group().captionPreferences()->setTestingMode(true);
 #endif
+    
+#if ENABLE(MEDIA_STREAM)
+    MockMediaStreamCenter::registerMockMediaStreamCenter();
+#endif
 }
 
 Document* Internals::contextDocument() const
@@ -346,34 +352,6 @@ bool Internals::isLoadingFromMemoryCache(const String& url)
     return resource && resource->status() == CachedResource::Cached;
 }
 
-PassRefPtr<Element> Internals::createContentElement(ExceptionCode& ec)
-{
-    Document* document = contextDocument();
-    if (!document) {
-        ec = INVALID_ACCESS_ERR;
-        return 0;
-    }
-
-#if ENABLE(SHADOW_DOM)
-    return HTMLContentElement::create(*document);
-#else
-    return 0;
-#endif
-}
-
-bool Internals::isValidContentSelect(Element* insertionPoint, ExceptionCode& ec)
-{
-    if (!insertionPoint || !insertionPoint->isInsertionPoint()) {
-        ec = INVALID_ACCESS_ERR;
-        return false;
-    }
-
-#if ENABLE(SHADOW_DOM)
-    return isHTMLContentElement(insertionPoint) && toHTMLContentElement(insertionPoint)->isSelectValid();
-#else
-    return false;
-#endif
-}
 
 Node* Internals::treeScopeRootNode(Node* node, ExceptionCode& ec)
 {
@@ -524,19 +502,6 @@ String Internals::elementRenderTreeAsText(Element* element, ExceptionCode& ec)
     }
 
     return representation;
-}
-
-size_t Internals::numberOfScopedHTMLStyleChildren(const Node* scope, ExceptionCode& ec) const
-{
-    if (scope && (scope->isElementNode() || scope->isShadowRoot()))
-#if ENABLE(STYLE_SCOPED)
-        return scope->numberOfScopedHTMLStyleChildren();
-#else
-        return 0;
-#endif
-
-    ec = INVALID_ACCESS_ERR;
-    return 0;
 }
 
 PassRefPtr<CSSComputedStyleDeclaration> Internals::computedStyleIncludingVisitedInfo(Node* node, ExceptionCode& ec) const
@@ -711,7 +676,7 @@ PassRefPtr<ClientRect> Internals::boundingBox(Element* element, ExceptionCode& e
     }
 
     element->document().updateLayoutIgnorePendingStylesheets();
-    RenderObject* renderer = element->renderer();
+    auto renderer = element->renderer();
     if (!renderer)
         return ClientRect::create();
     return ClientRect::create(renderer->absoluteBoundingBoxRectIgnoringTransforms());
@@ -1658,20 +1623,30 @@ void Internals::allowRoundingHacks() const
     TextRun::setAllowsRoundingHacks(true);
 }
 
-void Internals::insertAuthorCSS(Document* document, const String& css) const
+void Internals::insertAuthorCSS(Document* document, const String& css, ExceptionCode& ec) const
 {
-    RefPtr<StyleSheetContents> parsedSheet = StyleSheetContents::create(document);
+    if (!document) {
+        ec = INVALID_ACCESS_ERR;
+        return;
+    }
+
+    RefPtr<StyleSheetContents> parsedSheet = StyleSheetContents::create(*document);
     parsedSheet->setIsUserStyleSheet(false);
     parsedSheet->parseString(css);
-    document->styleSheetCollection()->addAuthorSheet(parsedSheet);
+    document->styleSheetCollection().addAuthorSheet(parsedSheet);
 }
 
-void Internals::insertUserCSS(Document* document, const String& css) const
+void Internals::insertUserCSS(Document* document, const String& css, ExceptionCode& ec) const
 {
-    RefPtr<StyleSheetContents> parsedSheet = StyleSheetContents::create(document);
+    if (!document) {
+        ec = INVALID_ACCESS_ERR;
+        return;
+    }
+
+    RefPtr<StyleSheetContents> parsedSheet = StyleSheetContents::create(*document);
     parsedSheet->setIsUserStyleSheet(true);
     parsedSheet->parseString(css);
-    document->styleSheetCollection()->addUserSheet(parsedSheet);
+    document->styleSheetCollection().addUserSheet(parsedSheet);
 }
 
 String Internals::counterValue(Element* element)
@@ -2013,7 +1988,7 @@ bool Internals::isSelectPopupVisible(Node* node)
 
     HTMLSelectElement* select = toHTMLSelectElement(node);
 
-    RenderObject* renderer = select->renderer();
+    auto renderer = select->renderer();
     if (!renderer->isMenuList())
         return false;
 
@@ -2135,7 +2110,7 @@ bool Internals::isPluginUnavailabilityIndicatorObscured(Element* element, Except
         return false;
     }
 
-    RenderObject* renderer = element->renderer();
+    auto renderer = element->renderer();
     if (!renderer || !renderer->isEmbeddedObject()) {
         ec = INVALID_ACCESS_ERR;
         return false;

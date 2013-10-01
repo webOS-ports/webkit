@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2001 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2013 Apple Inc. All rights reserved.
  *           (C) 2006 Alexey Proskuryakov (ap@nypop.com)
  * Copyright (C) 2007 Samuel Weinig (sam@webkit.org)
  * Copyright (C) 2010 Google Inc. All rights reserved.
@@ -1340,7 +1340,7 @@ void HTMLInputElement::setSize(unsigned size, ExceptionCode& ec)
         setSize(size);
 }
 
-KURL HTMLInputElement::src() const
+URL HTMLInputElement::src() const
 {
     return document().completeURL(fastGetAttribute(srcAttr));
 }
@@ -1368,13 +1368,6 @@ bool HTMLInputElement::receiveDroppedFiles(const DragData* dragData)
 {
     return m_inputType->receiveDroppedFiles(dragData);
 }
-
-#if ENABLE(FILE_SYSTEM)
-String HTMLInputElement::droppedFileSystemId()
-{
-    return m_inputType->droppedFileSystemId();
-}
-#endif
 
 Icon* HTMLInputElement::icon() const
 {
@@ -1463,7 +1456,7 @@ bool HTMLInputElement::matchesReadOnlyPseudoClass() const
 
 bool HTMLInputElement::matchesReadWritePseudoClass() const
 {
-    return m_inputType->supportsReadOnly() && !isReadOnly();
+    return m_inputType->supportsReadOnly() && !isDisabledOrReadOnly();
 }
 
 void HTMLInputElement::addSearchResult()
@@ -1570,7 +1563,7 @@ void HTMLInputElement::didMoveToNewDocument(Document* oldDocument)
     HTMLTextFormControlElement::didMoveToNewDocument(oldDocument);
 }
 
-void HTMLInputElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) const
+void HTMLInputElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
 {
     HTMLTextFormControlElement::addSubresourceAttributeURLs(urls);
 
@@ -1646,7 +1639,7 @@ bool HTMLInputElement::isSteppable() const
 bool HTMLInputElement::isSpeechEnabled() const
 {
     // FIXME: Add support for RANGE, EMAIL, URL, COLOR and DATE/TIME input types.
-    return m_inputType->shouldRespectSpeechAttribute() && RuntimeEnabledFeatures::speechInputEnabled() && hasAttribute(webkitspeechAttr);
+    return m_inputType->shouldRespectSpeechAttribute() && RuntimeEnabledFeatures::sharedFeatures().speechInputEnabled() && hasAttribute(webkitspeechAttr);
 }
 
 #endif
@@ -1950,7 +1943,7 @@ bool HTMLInputElement::setupDateTimeChooserParameters(DateTimeChooserParameters&
     parameters.minimum = minimum();
     parameters.maximum = maximum();
     parameters.required = isRequired();
-    if (!RuntimeEnabledFeatures::langAttributeAwareFormControlUIEnabled())
+    if (!RuntimeEnabledFeatures::sharedFeatures().langAttributeAwareFormControlUIEnabled())
         parameters.locale = defaultLanguage();
     else {
         AtomicString computedLocale = computeInheritedLanguage();

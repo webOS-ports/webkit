@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2005-2013 Apple Inc. All rights reserved.
  * Copyright (C) 2006 David Smith (catfish.man@gmail.com)
  * Copyright (C) 2010 Igalia S.L
  *
@@ -108,6 +108,7 @@
 #import "WebTextIterator.h"
 #import "WebUIDelegate.h"
 #import "WebUIDelegatePrivate.h"
+#import "WebUserMediaClient.h"
 #import <CoreFoundation/CFSet.h>
 #import <Foundation/NSURLConnection.h>
 #import <JavaScriptCore/APICast.h>
@@ -130,7 +131,6 @@
 #import <WebCore/EventHandler.h>
 #import <WebCore/ExceptionHandlers.h>
 #import <WebCore/FocusController.h>
-#import <WebCore/Frame.h>
 #import <WebCore/FrameLoader.h>
 #import <WebCore/FrameSelection.h>
 #import <WebCore/FrameTree.h>
@@ -150,6 +150,7 @@
 #import <WebCore/JSNotification.h>
 #import <WebCore/Logging.h>
 #import <WebCore/MIMETypeRegistry.h>
+#import <WebCore/MainFrame.h>
 #import <WebCore/MemoryPressureHandler.h>
 #import <WebCore/NodeList.h>
 #import <WebCore/Notification.h>
@@ -681,7 +682,7 @@ static NSString *leakOutlookQuirksUserScriptContents()
 {
     static NSString *outlookQuirksScriptContents = leakOutlookQuirksUserScriptContents();
     core(self)->group().addUserScriptToWorld(core([WebScriptWorld world]),
-        outlookQuirksScriptContents, KURL(), Vector<String>(), Vector<String>(), InjectAtDocumentEnd, InjectInAllFrames);
+        outlookQuirksScriptContents, URL(), Vector<String>(), Vector<String>(), InjectAtDocumentEnd, InjectInAllFrames);
 }
 
 static bool shouldRespectPriorityInCSSAttributeSetters()
@@ -765,6 +766,9 @@ static bool shouldUseLegacyBackgroundSizeShorthandBehavior()
 #endif
 #if ENABLE(DEVICE_ORIENTATION)
     WebCore::provideDeviceOrientationTo(_private->page, new WebDeviceOrientationClient(self));
+#endif
+#if ENABLE(MEDIA_STREAM)
+    WebCore::provideUserMediaTo(_private->page, new WebUserMediaClient(self));
 #endif
 
     _private->page->setCanStartMedia([self window]);
@@ -1521,13 +1525,13 @@ static bool needsSelfRetainWhileLoadingQuirk()
 #if ENABLE(CSS_SHADERS)
     settings.setCSSCustomFilterEnabled([preferences cssCustomFilterEnabled]);
 #endif
-    RuntimeEnabledFeatures::setCSSRegionsEnabled([preferences cssRegionsEnabled]);
-    RuntimeEnabledFeatures::setCSSCompositingEnabled([preferences cssCompositingEnabled]);
+    RuntimeEnabledFeatures::sharedFeatures().setCSSRegionsEnabled([preferences cssRegionsEnabled]);
+    RuntimeEnabledFeatures::sharedFeatures().setCSSCompositingEnabled([preferences cssCompositingEnabled]);
 #if ENABLE(WEB_AUDIO)
     settings.setWebAudioEnabled([preferences webAudioEnabled]);
 #endif
 #if ENABLE(IFRAME_SEAMLESS)
-    RuntimeEnabledFeatures::setSeamlessIFramesEnabled([preferences seamlessIFramesEnabled]);
+    RuntimeEnabledFeatures::sharedFeatures().setSeamlessIFramesEnabled([preferences seamlessIFramesEnabled]);
 #endif
     settings.setCSSGridLayoutEnabled([preferences cssGridLayoutEnabled]);
 #if ENABLE(FULLSCREEN_API)
@@ -2186,7 +2190,7 @@ static inline IMP getMethod(id o, SEL s)
             if (_private->page)
                 _private->page->settings().setUsesDashboardBackwardCompatibilityMode(flag);
 #if ENABLE(LEGACY_CSS_VENDOR_PREFIXES)
-            RuntimeEnabledFeatures::setLegacyCSSVendorPrefixesEnabled(flag);
+            RuntimeEnabledFeatures::sharedFeatures().setLegacyCSSVendorPrefixesEnabled(flag);
 #endif
             break;
         }
@@ -6654,6 +6658,24 @@ static void glibContextIterationCallback(CFRunLoopObserverRef, CFRunLoopActivity
 }
 
 @end
+
+#if ENABLE(MEDIA_STREAM)
+@implementation WebView (WebViewUserMedia)
+
+- (void)_setUserMediaClient:(id<WebUserMediaClient>)userMediaClient
+{
+    if (_private)
+        _private->m_userMediaClient = userMediaClient;
+}
+
+- (id<WebUserMediaClient>)_userMediaClient
+{
+    if (_private)
+        return _private->m_userMediaClient;
+    return nil;
+}
+@end
+#endif
 
 @implementation WebView (WebViewGeolocation)
 

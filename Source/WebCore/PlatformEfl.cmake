@@ -58,7 +58,6 @@ list(APPEND WebCore_SOURCES
 
     platform/cairo/WidgetBackingStoreCairo.cpp
 
-    platform/efl/AsyncFileSystemEfl.cpp
     platform/efl/BatteryProviderEfl.cpp
     platform/efl/CursorEfl.cpp
     platform/efl/DragDataEfl.cpp
@@ -82,7 +81,6 @@ list(APPEND WebCore_SOURCES
     platform/efl/PlatformWheelEventEfl.cpp
     platform/efl/RenderThemeEfl.cpp
     platform/efl/RunLoopEfl.cpp
-    platform/efl/ScrollViewEfl.cpp
     platform/efl/ScrollbarEfl.cpp
     platform/efl/ScrollbarThemeEfl.cpp
     platform/efl/SharedTimerEfl.cpp

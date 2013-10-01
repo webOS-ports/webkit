@@ -41,6 +41,7 @@
 #include "DFGNodeAllocator.h"
 #include "DFGPlan.h"
 #include "DFGVariadicFunction.h"
+#include "InlineCallFrameSet.h"
 #include "JSStack.h"
 #include "MethodOfGettingAValueProfile.h"
 #include <wtf/BitVector.h>
@@ -428,17 +429,17 @@ public:
         return hasExitSite(node->codeOrigin, exitKind);
     }
     
-    int argumentsRegisterFor(const CodeOrigin& codeOrigin)
+    VirtualRegister argumentsRegisterFor(const CodeOrigin& codeOrigin)
     {
         if (!codeOrigin.inlineCallFrame)
             return m_codeBlock->argumentsRegister();
         
-        return baselineCodeBlockForInlineCallFrame(
-            codeOrigin.inlineCallFrame)->argumentsRegister() +
-            codeOrigin.inlineCallFrame->stackOffset;
+        return VirtualRegister(baselineCodeBlockForInlineCallFrame(
+            codeOrigin.inlineCallFrame)->argumentsRegister().offset() +
+            codeOrigin.inlineCallFrame->stackOffset);
     }
     
-    int uncheckedArgumentsRegisterFor(const CodeOrigin& codeOrigin)
+    VirtualRegister uncheckedArgumentsRegisterFor(const CodeOrigin& codeOrigin)
     {
         if (!codeOrigin.inlineCallFrame)
             return m_codeBlock->uncheckedArgumentsRegister();
@@ -446,13 +447,13 @@ public:
         CodeBlock* codeBlock = baselineCodeBlockForInlineCallFrame(
             codeOrigin.inlineCallFrame);
         if (!codeBlock->usesArguments())
-            return InvalidVirtualRegister;
+            return VirtualRegister();
         
-        return codeBlock->argumentsRegister() +
-            codeOrigin.inlineCallFrame->stackOffset;
+        return VirtualRegister(codeBlock->argumentsRegister().offset() +
+            codeOrigin.inlineCallFrame->stackOffset);
     }
     
-    int uncheckedActivationRegisterFor(const CodeOrigin&)
+    VirtualRegister uncheckedActivationRegisterFor(const CodeOrigin&)
     {
         // This will ignore CodeOrigin because we don't inline code that uses activations.
         // Hence for inlined call frames it will return the outermost code block's
@@ -471,14 +472,14 @@ public:
         CodeBlock* profiledBlock = baselineCodeBlockFor(node->codeOrigin);
         
         if (node->op() == GetArgument)
-            return profiledBlock->valueProfileForArgument(operandToArgument(node->local()));
+            return profiledBlock->valueProfileForArgument(node->local().toArgument());
         
         if (node->hasLocal(*this)) {
             if (m_form == SSA)
                 return 0;
-            if (!operandIsArgument(node->local()))
+            if (!node->local().isArgument())
                 return 0;
-            int argument = operandToArgument(node->local());
+            int argument = node->local().toArgument();
             if (node->variableAccessData() != m_arguments[argument]->variableAccessData())
                 return 0;
             return profiledBlock->valueProfileForArgument(argument);
@@ -747,6 +748,7 @@ public:
     SegmentedVector<StructureTransitionData, 8> m_structureTransitionData;
     SegmentedVector<NewArrayBufferData, 4> m_newArrayBufferData;
     SegmentedVector<SwitchData, 4> m_switchData;
+    OwnPtr<InlineCallFrameSet> m_inlineCallFrames;
     bool m_hasArguments;
     HashSet<ExecutableBase*> m_executablesWhoseArgumentsEscaped;
     BitVector m_preservedVars;

@@ -1,3 +1,171 @@
+2013-09-30  Antoine Quint  <graouts@apple.com>
+
+        Web Inspector: rows in the Layer sidebar panel may have the incorrect background color
+        https://bugs.webkit.org/show_bug.cgi?id=122108
+
+        Reviewed by Darin Adler.
+
+        The LayerTreeDataGrid is a custom DataGrid subclass which exposes a .setChildren() method
+        used to sort chidren without DOM order manipulation, for performance reason. However, since
+        the way the alternating background color is usually implemented is based on the built-in
+        CSS pseudo-classes working with DOM order, the background colors of nodes in the LayerTreeDataGrid
+        can be incorrect depending on the sort order and the number of nodes. To fix this, we now manually
+        set "even" and "odd" CSS classes on those nodes when they're sorted such that we have a chance
+        to style them as intended. 
+
+        * UserInterface/LayerTreeDataGrid.js:
+        (WebInspector.LayerTreeDataGrid.prototype._updateChildren):
+        Check if the data grid node index is even or odd and reflect this via an exclusive "even"
+        or "odd" CSS class name.
+
+        * UserInterface/LayerTreeSidebarPanel.css:
+        (.layer-tree.panel .data-container tbody > tr.even):
+        (.layer-tree.panel .data-container tbody > tr.odd):
+        Apply alternating colors based on the exclusive "even" and "odd" CSS class names as applied in
+        WebInspector.LayerTreeDataGrid.prototype._updateChildren().
+
+2013-09-30  Antoine Quint  <graouts@apple.com>
+
+        Web Inspector: Popover displaying "reasons for compositing" may remain on screen after selected layer is removed
+        https://bugs.webkit.org/show_bug.cgi?id=117575
+
+        Ensure the popover attached to the selected data grid node is updated when the
+        content or sort order of the Layer sidebar panel is updated.
+
+        Reviewed by Darin Adler.
+
+        * UserInterface/LayerTreeSidebarPanel.js:
+        (WebInspector.LayerTreeSidebarPanel.prototype._sortDataGrid):
+
+2013-09-30  Antoine Quint  <graouts@apple.com>
+
+        Web Inspector: nodes can be dragged from the console log
+        https://bugs.webkit.org/show_bug.cgi?id=122105
+
+        Reviewed by Darin Adler.
+
+        Catch "dragstart" events targeting nodes hosted in a DOMTreeOutline within the console
+        log view and prevent the default logic to trigger so that these nodes can't be dragged
+        off the console as it wouldn't make sense to.
+
+        * UserInterface/DOMTreeOutline.js:
+        (WebInspector.DOMTreeOutline):
+        Create a class property to allow the CSS class name to be used in WebInspector.LogContentView.
+
+        * UserInterface/LogContentView.js:
+        (WebInspector.LogContentView):
+        (WebInspector.LogContentView.prototype._ondragstart):
+        Track the "dragstart" events in their capture phase such that, if the event target is
+        a DOM node hosted in a DOMTreeOutline, we can prevent the event from propagating and
+        cancel its default behavior such that no dragging at all is performed.
+
+2013-09-26  Brian J. Burg  <burg@cs.washington.edu>
+
+        Web Inspector: dissociate old content views that are spliced from back/forward list
+        https://bugs.webkit.org/show_bug.cgi?id=121987
+
+        Reviewed by Timothy Hatcher.
+
+        There was a bug where old back/forward list entries were not being dissociated when
+        the newly-shown content view was already in the list. Instead, dissociation should be
+        skipped if the old list entry is not already in the list.
+
+        * UserInterface/ContentViewContainer.js:
+        (WebInspector.ContentViewContainer.prototype.showContentView):
+
+2013-09-26  Antoine Quint  <graouts@apple.com>
+
+        Web Inspector: Activity viewer not properly reset when reloading
+        https://bugs.webkit.org/show_bug.cgi?id=121958
+
+        Reviewed by Darin Adler.
+
+        Reset the resources count and accumulated size when we detect the main frame
+        has changed, which will work with documents where there are no resources besides
+        frames in which case WebInspector.Frame.Event.AllResourcesRemoved was not fired
+        and our counts wouldn't be reset correctly.
+
+        * UserInterface/DashboardManager.js:
+        (WebInspector.DashboardManager):
+        (WebInspector.DashboardManager.prototype._mainResourceDidChange):
+
+2013-09-26  Antoine Quint  <graouts@apple.com>
+
+        Web Inspector: Keep DOM tree expanded on page reload
+        https://bugs.webkit.org/show_bug.cgi?id=121665
+
+        Reviewed by Darin Adler.
+
+        Allow the node that was selected before reloading the page to be selected
+        at the page is reloaded. Credit goes to Joseph Pecoraro for the fix.
+
+        * UserInterface/DOMTreeContentView.js:
+        (WebInspector.DOMTreeContentView.prototype._rootDOMNodeAvailable.selectNode):
+
+2013-09-24  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Using Breakpoint Actions Breaks iOS inspection
+        https://bugs.webkit.org/show_bug.cgi?id=121862
+
+        Reviewed by Timothy Hatcher.
+
+        Only use DebuggerAgent.BreakpointActionType if it is available.
+        Otherwise leave options undefined for breakpoints since the backend
+        does not support it.
+
+        * UserInterface/DebuggerManager.js:
+        (WebInspector.DebuggerManager.prototype._setBreakpoint):
+
+2013-09-24  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Include iOS 7 Inspector.json Version
+        https://bugs.webkit.org/show_bug.cgi?id=121852
+
+        Reviewed by Timothy Hatcher.
+
+        * UserInterface/Legacy/7.0/InspectorBackendCommands.js: Added.
+        * Versions/Inspector-iOS-7.0.json: Added.
+
+2013-09-24  Mark Rowe  <mrowe@apple.com>
+
+        <rdar://problem/14971518> WebKit should build against the Xcode default toolchain when targeting OS X 10.8
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/Base.xcconfig:
+
+2013-09-24  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Breakpoint Actions input should disable spellchecking
+        https://bugs.webkit.org/show_bug.cgi?id=121846
+
+        Reviewed by Timothy Hatcher.
+
+        * UserInterface/BreakpointActionView.js:
+
+2013-09-21  Timothy Hatcher  <timothy@apple.com>
+
+        Hook up the initiator info and show it in the Resource details sidebar.
+
+        https://bugs.webkit.org/show_bug.cgi?id=121741
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/FrameResourceManager.js:
+        (WebInspector.FrameResourceManager.prototype.resourceRequestWillBeSent):
+        (WebInspector.FrameResourceManager.prototype.resourceRequestWasServedFromMemoryCache):
+        (WebInspector.FrameResourceManager.prototype._addNewResourceToFrame):
+        (WebInspector.FrameResourceManager.prototype._initiatorSourceCodeLocationFromPayload):
+        * UserInterface/NetworkObserver.js:
+        (WebInspector.NetworkObserver.prototype.requestWillBeSent):
+        (WebInspector.NetworkObserver.prototype.requestServedFromMemoryCache):
+        * UserInterface/Resource.js:
+        (WebInspector.Resource):
+        (WebInspector.Resource.prototype.get initiatorSourceCodeLocation):
+        * UserInterface/ResourceDetailsSidebarPanel.js:
+        (WebInspector.ResourceDetailsSidebarPanel):
+        (WebInspector.ResourceDetailsSidebarPanel.prototype._refreshURL):
+
 2013-09-20  Timothy Hatcher  <timothy@apple.com>
 
         Parse MIME-types and strip them down to the base type when needed.

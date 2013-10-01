@@ -92,7 +92,7 @@ HTMLLinkElement::~HTMLLinkElement()
         m_cachedSheet->removeClient(this);
 
     if (inDocument())
-        document().styleSheetCollection()->removeStyleSheetCandidateNode(this);
+        document().styleSheetCollection().removeStyleSheetCandidateNode(*this);
 
     linkLoadEventSender().cancelEvent(this);
 }
@@ -179,7 +179,7 @@ void HTMLLinkElement::process()
     }
 
     String type = m_type.lower();
-    KURL url = getNonEmptyURLAttribute(hrefAttr);
+    URL url = getNonEmptyURLAttribute(hrefAttr);
 
     if (!m_linkLoader.loadLink(m_relAttribute, type, m_sizes->toString(), url, &document()))
         return;
@@ -255,7 +255,7 @@ Node::InsertionNotificationRequest HTMLLinkElement::insertedInto(ContainerNode* 
     if (m_isInShadowTree)
         return InsertionDone;
 
-    document().styleSheetCollection()->addStyleSheetCandidateNode(this, m_createdByParser);
+    document().styleSheetCollection().addStyleSheetCandidateNode(*this, m_createdByParser);
 
     process();
     return InsertionDone;
@@ -273,7 +273,7 @@ void HTMLLinkElement::removedFrom(ContainerNode* insertionPoint)
         ASSERT(!m_sheet);
         return;
     }
-    document().styleSheetCollection()->removeStyleSheetCandidateNode(this);
+    document().styleSheetCollection().removeStyleSheetCandidateNode(*this);
 
     if (m_sheet)
         clearSheet();
@@ -291,7 +291,7 @@ void HTMLLinkElement::finishParsingChildren()
     HTMLElement::finishParsingChildren();
 }
 
-void HTMLLinkElement::setCSSStyleSheet(const String& href, const KURL& baseURL, const String& charset, const CachedCSSStyleSheet* cachedStyleSheet)
+void HTMLLinkElement::setCSSStyleSheet(const String& href, const URL& baseURL, const String& charset, const CachedCSSStyleSheet* cachedStyleSheet)
 {
     if (!inDocument()) {
         ASSERT(!m_sheet);
@@ -300,7 +300,7 @@ void HTMLLinkElement::setCSSStyleSheet(const String& href, const KURL& baseURL, 
     // Completing the sheet load may cause scripts to execute.
     Ref<HTMLLinkElement> protect(*this);
 
-    CSSParserContext parserContext(&document(), baseURL, charset);
+    CSSParserContext parserContext(document(), baseURL, charset);
 
     if (RefPtr<StyleSheetContents> restoredSheet = const_cast<CachedCSSStyleSheet*>(cachedStyleSheet)->restoreParsedStyleSheet(parserContext)) {
         ASSERT(restoredSheet->isCacheable());
@@ -395,7 +395,7 @@ bool HTMLLinkElement::isURLAttribute(const Attribute& attribute) const
     return attribute.name().localName() == hrefAttr || HTMLElement::isURLAttribute(attribute);
 }
 
-KURL HTMLLinkElement::href() const
+URL HTMLLinkElement::href() const
 {
     return document().completeURL(getAttribute(hrefAttr));
 }
@@ -425,7 +425,7 @@ String HTMLLinkElement::iconSizes() const
     return m_sizes->toString();
 }
 
-void HTMLLinkElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) const
+void HTMLLinkElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
 {
     HTMLElement::addSubresourceAttributeURLs(urls);
 
@@ -452,7 +452,7 @@ void HTMLLinkElement::addPendingSheet(PendingSheetType type)
 
     if (m_pendingSheetType == InactiveSheet)
         return;
-    document().styleSheetCollection()->addPendingSheet();
+    document().styleSheetCollection().addPendingSheet();
 }
 
 void HTMLLinkElement::removePendingSheet(RemovePendingSheetNotificationType notification)
@@ -465,11 +465,11 @@ void HTMLLinkElement::removePendingSheet(RemovePendingSheetNotificationType noti
 
     if (type == InactiveSheet) {
         // Document just needs to know about the sheet for exposure through document.styleSheets
-        document().styleSheetCollection()->updateActiveStyleSheets(DocumentStyleSheetCollection::OptimizedUpdate);
+        document().styleSheetCollection().updateActiveStyleSheets(DocumentStyleSheetCollection::OptimizedUpdate);
         return;
     }
 
-    document().styleSheetCollection()->removePendingSheet(
+    document().styleSheetCollection().removePendingSheet(
         notification == RemovePendingSheetNotifyImmediately
         ? DocumentStyleSheetCollection::RemovePendingSheetNotifyImmediately
         : DocumentStyleSheetCollection::RemovePendingSheetNotifyLater);

@@ -103,20 +103,20 @@ void LineWidth::shrinkAvailableWidthForNewFloatIfNeeded(FloatingObject* newFloat
     // the first previous float that is on the same side as our newFloat.
     ShapeOutsideInfo* previousShapeOutsideInfo = 0;
     const FloatingObjectSet& floatingObjectSet = m_block.m_floatingObjects->set();
-    FloatingObjectSetIterator it = floatingObjectSet.end();
-    FloatingObjectSetIterator begin = floatingObjectSet.begin();
+    auto it = floatingObjectSet.end();
+    auto begin = floatingObjectSet.begin();
     LayoutUnit lineHeight = m_block.lineHeight(m_isFirstLine, m_block.isHorizontalWritingMode() ? HorizontalLine : VerticalLine, PositionOfInteriorLineBoxes);
     for (--it; it != begin; --it) {
-        FloatingObject* previousFloat = *it;
+        FloatingObject* previousFloat = it->get();
         if (previousFloat != newFloat && previousFloat->type() == newFloat->type()) {
-            previousShapeOutsideInfo = previousFloat->renderer()->shapeOutsideInfo();
+            previousShapeOutsideInfo = previousFloat->renderer().shapeOutsideInfo();
             if (previousShapeOutsideInfo)
                 previousShapeOutsideInfo->updateDeltasForContainingBlockLine(&m_block, previousFloat, m_block.logicalHeight(), lineHeight);
             break;
         }
     }
 
-    ShapeOutsideInfo* shapeOutsideInfo = newFloat->renderer()->shapeOutsideInfo();
+    ShapeOutsideInfo* shapeOutsideInfo = newFloat->renderer().shapeOutsideInfo();
     if (shapeOutsideInfo)
         shapeOutsideInfo->updateDeltasForContainingBlockLine(&m_block, newFloat, m_block.logicalHeight(), lineHeight);
 #endif
@@ -150,6 +150,23 @@ void LineWidth::shrinkAvailableWidthForNewFloatIfNeeded(FloatingObject* newFloat
     computeAvailableWidthFromLeftAndRight();
 }
 
+float LineWidth::uncommittedWidthForObject(const RenderObject& object) const
+{
+    auto result = m_uncommittedWidthMap.find(&object);
+    if (result != m_uncommittedWidthMap.end())
+        return result->value;
+    return -1;
+}
+
+void LineWidth::addUncommittedWidth(float delta, const RenderObject& current)
+{
+    m_uncommittedWidth += delta;
+
+    auto result = m_uncommittedWidthMap.add(&current, delta);
+    if (!result.isNewEntry)
+        result.iterator->value += delta;
+}
+
 void LineWidth::commit()
 {
     m_committedWidth += m_uncommittedWidth;
@@ -181,7 +198,7 @@ void LineWidth::fitBelowFloats()
     float newLineLeft = m_left;
     float newLineRight = m_right;
     while (true) {
-        floatLogicalBottom = m_block.nextFloatLogicalBottomBelow(lastFloatLogicalBottom);
+        floatLogicalBottom = m_block.nextFloatLogicalBottomBelow(lastFloatLogicalBottom, ShapeOutsideFloatShapeOffset);
         if (floatLogicalBottom <= lastFloatLogicalBottom)
             break;
 

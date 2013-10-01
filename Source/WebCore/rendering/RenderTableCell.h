@@ -70,6 +70,9 @@ public:
         return m_column;
     }
 
+    RenderTableCell* nextCell() const;
+    RenderTableCell* previousCell() const;
+
     RenderTableRow* row() const { return toRenderTableRow(parent()); }
     RenderTableSection* section() const { return toRenderTableSection(parent()->parent()); }
     RenderTable* table() const { return toRenderTable(parent()->parent()->parent()); }
@@ -125,7 +128,7 @@ public:
     bool alignLeftRightBorderPaintRect(int& leftXOffset, int& rightXOffset);
     bool alignTopBottomBorderPaintRect(int& topYOffset, int& bottomYOffset);
     void paintCollapsedBorders(PaintInfo&, const LayoutPoint&);
-    void paintBackgroundsBehindCell(PaintInfo&, const LayoutPoint&, RenderObject* backgroundObject);
+    void paintBackgroundsBehindCell(PaintInfo&, const LayoutPoint&, RenderElement* backgroundObject);
 
     LayoutUnit cellBaselinePosition() const;
     bool isBaselineAligned() const 
@@ -207,6 +210,8 @@ public:
         return style()->borderEnd();
     }
 
+    using RenderBlockFlow::nodeAtPoint;
+
 #ifndef NDEBUG
     bool isFirstOrLastCellInRow() const
     {
@@ -279,6 +284,9 @@ private:
     unsigned parseRowSpanFromDOM() const;
     unsigned parseColSpanFromDOM() const;
 
+    void nextSibling() const WTF_DELETED_FUNCTION;
+    void previousSibling() const WTF_DELETED_FUNCTION;
+
     // Note MSVC will only pack members if they have identical types, hence we use unsigned instead of bool here.
     unsigned m_column : 29;
     unsigned m_cellWidthChanged : 1;
@@ -302,6 +310,26 @@ inline const RenderTableCell* toRenderTableCell(const RenderObject* object)
 
 // This will catch anyone doing an unnecessary cast.
 void toRenderTableCell(const RenderTableCell*);
+
+inline RenderTableCell* RenderTableCell::nextCell() const
+{
+    return toRenderTableCell(RenderBlockFlow::nextSibling());
+}
+
+inline RenderTableCell* RenderTableCell::previousCell() const
+{
+    return toRenderTableCell(RenderBlockFlow::previousSibling());
+}
+
+inline RenderTableCell* RenderTableRow::firstCell() const
+{
+    return toRenderTableCell(RenderBox::firstChild());
+}
+
+inline RenderTableCell* RenderTableRow::lastCell() const
+{
+    return toRenderTableCell(RenderBox::lastChild());
+}
 
 } // namespace WebCore
 

@@ -497,7 +497,7 @@ void RenderRegion::setRegionObjectsRegionStyle()
         if (!element->renderer())
             continue;
 
-        RenderObject* object = element->renderer();
+        RenderElement* object = element->renderer();
         // If the content node does not flow any of its children in this region,
         // we do not compute any style for them in this region.
         if (!flowThread()->objectInFlowRegion(object, this))
@@ -530,7 +530,8 @@ void RenderRegion::restoreRegionObjectsOriginalStyle()
         RenderObject* object = const_cast<RenderObject*>(iter->key);
         RefPtr<RenderStyle> objectRegionStyle = object->style();
         RefPtr<RenderStyle> objectOriginalStyle = iter->value.style;
-        object->setStyleInternal(objectOriginalStyle);
+        if (object->isRenderElement())
+            toRenderElement(object)->setStyleInternal(objectOriginalStyle);
 
         bool shouldCacheRegionStyle = iter->value.cached;
         if (!shouldCacheRegionStyle) {
@@ -578,7 +579,7 @@ PassRefPtr<RenderStyle> RenderRegion::computeStyleInRegion(const RenderObject* o
     return renderObjectRegionStyle.release();
 }
 
-void RenderRegion::computeChildrenStyleInRegion(const RenderObject* object)
+void RenderRegion::computeChildrenStyleInRegion(const RenderElement* object)
 {
     for (RenderObject* child = object->firstChild(); child; child = child->nextSibling()) {
 
@@ -600,7 +601,8 @@ void RenderRegion::computeChildrenStyleInRegion(const RenderObject* object)
 
         setObjectStyleInRegion(child, childStyleInRegion, objectRegionStyleCached);
 
-        computeChildrenStyleInRegion(child);
+        if (child->isRenderElement())
+            computeChildrenStyleInRegion(toRenderElement(child));
     }
 }
 
@@ -609,7 +611,8 @@ void RenderRegion::setObjectStyleInRegion(RenderObject* object, PassRefPtr<Rende
     ASSERT(object->flowThreadContainingBlock());
 
     RefPtr<RenderStyle> objectOriginalStyle = object->style();
-    object->setStyleInternal(styleInRegion);
+    if (object->isRenderElement())
+        toRenderElement(object)->setStyleInternal(styleInRegion);
 
     if (object->isBoxModelObject() && !object->hasBoxDecorations()) {
         bool hasBoxDecorations = object->isTableCell()
@@ -632,7 +635,7 @@ void RenderRegion::clearObjectStyleInRegion(const RenderObject* object)
     m_renderObjectRegionStyle.remove(object);
 
     // Clear the style for the children of this object.
-    for (RenderObject* child = object->firstChild(); child; child = child->nextSibling())
+    for (RenderObject* child = object->firstChildSlow(); child; child = child->nextSibling())
         clearObjectStyleInRegion(child);
 }
 

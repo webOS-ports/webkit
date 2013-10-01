@@ -386,7 +386,7 @@ public:
     };
 
     // Scrolling methods for layers that can scroll their overflow.
-    void scrollByRecursively(const IntSize&, ScrollOffsetClamping = ScrollOffsetUnclamped, ScrollView** scrolledView = 0);
+    void scrollByRecursively(const IntSize&, ScrollOffsetClamping = ScrollOffsetUnclamped, ScrollableArea** scrolledArea = 0);
     void scrollToOffset(const IntSize&, ScrollOffsetClamping = ScrollOffsetUnclamped);
     void scrollToXOffset(int x, ScrollOffsetClamping clamp = ScrollOffsetUnclamped) { scrollToOffset(IntSize(x, scrollYOffset()), clamp); }
     void scrollToYOffset(int y, ScrollOffsetClamping clamp = ScrollOffsetUnclamped) { scrollToOffset(IntSize(scrollXOffset(), y), clamp); }
@@ -1028,9 +1028,7 @@ private:
     virtual IntPoint lastKnownMousePosition() const;
     virtual bool isHandlingWheelEvent() const OVERRIDE;
     virtual bool shouldSuspendScrollAnimations() const;
-    virtual bool scrollbarsCanBeActive() const;
     virtual IntRect scrollableAreaBoundingBox() const OVERRIDE;
-    virtual bool scrollbarAnimationsAreSuppressed() const OVERRIDE;
 
     // Rectangle encompassing the scroll corner and resizer rect.
     IntRect scrollCornerAndResizerRect() const;

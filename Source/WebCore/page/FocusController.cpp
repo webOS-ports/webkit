@@ -38,7 +38,6 @@
 #include "EventHandler.h"
 #include "EventNames.h"
 #include "ExceptionCode.h"
-#include "Frame.h"
 #include "FrameSelection.h"
 #include "FrameTree.h"
 #include "FrameView.h"
@@ -49,10 +48,10 @@
 #include "HTMLTextAreaElement.h"
 #include "HitTestResult.h"
 #include "KeyboardEvent.h"
+#include "MainFrame.h"
 #include "NodeRenderingTraversal.h"
 #include "Page.h"
 #include "Range.h"
-#include "RenderObject.h"
 #include "RenderWidget.h"
 #include "ScrollAnimator.h"
 #include "Settings.h"
@@ -252,7 +251,7 @@ bool FocusController::setInitialFocus(FocusDirection direction, KeyboardEvent* e
     // into the web area again, even if focus did not change within WebCore. PostNotification is called instead
     // of handleFocusedUIElementChanged, because this will send the notification even if the element is the same.
     if (AXObjectCache* cache = focusedOrMainFrame().document()->existingAXObjectCache())
-        cache->postNotification(focusedOrMainFrame().document(), AXObjectCache::AXFocusedUIElementChanged, true);
+        cache->postNotification(focusedOrMainFrame().document(), AXObjectCache::AXFocusedUIElementChanged);
 
     return didAdvanceFocus;
 }

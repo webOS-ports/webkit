@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2003 Lars Knoll (knoll@kde.org)
  * Copyright (C) 2005 Allan Sandfeld Jensen (kde@carewolf.com)
- * Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Apple Inc. All rights reserved.
  * Copyright (C) 2007 Nicholas Shanks <webkit@nickshanks.com>
  * Copyright (C) 2008 Eric Seidel <eric@webkit.org>
  * Copyright (C) 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
@@ -254,7 +254,7 @@ const CSSParserContext& strictCSSParserContext()
     return strictContext;
 }
 
-CSSParserContext::CSSParserContext(CSSParserMode mode, const KURL& baseURL)
+CSSParserContext::CSSParserContext(CSSParserMode mode, const URL& baseURL)
     : baseURL(baseURL)
     , mode(mode)
     , isHTMLDocument(false)
@@ -272,22 +272,22 @@ CSSParserContext::CSSParserContext(CSSParserMode mode, const KURL& baseURL)
 {
 }
 
-CSSParserContext::CSSParserContext(Document* document, const KURL& baseURL, const String& charset)
-    : baseURL(baseURL.isNull() ? document->baseURL() : baseURL)
+CSSParserContext::CSSParserContext(Document& document, const URL& baseURL, const String& charset)
+    : baseURL(baseURL.isNull() ? document.baseURL() : baseURL)
     , charset(charset)
-    , mode(document->inQuirksMode() ? CSSQuirksMode : CSSStrictMode)
-    , isHTMLDocument(document->isHTMLDocument())
-    , isCSSCustomFilterEnabled(document->settings() ? document->settings()->isCSSCustomFilterEnabled() : false)
-    , isCSSStickyPositionEnabled(document->cssStickyPositionEnabled())
-    , isCSSRegionsEnabled(document->cssRegionsEnabled())
-    , isCSSCompositingEnabled(document->cssCompositingEnabled())
-    , isCSSGridLayoutEnabled(document->cssGridLayoutEnabled())
+    , mode(document.inQuirksMode() ? CSSQuirksMode : CSSStrictMode)
+    , isHTMLDocument(document.isHTMLDocument())
+    , isCSSCustomFilterEnabled(document.settings() ? document.settings()->isCSSCustomFilterEnabled() : false)
+    , isCSSStickyPositionEnabled(document.cssStickyPositionEnabled())
+    , isCSSRegionsEnabled(document.cssRegionsEnabled())
+    , isCSSCompositingEnabled(document.cssCompositingEnabled())
+    , isCSSGridLayoutEnabled(document.cssGridLayoutEnabled())
 #if ENABLE(CSS_VARIABLES)
-    , isCSSVariablesEnabled(document->settings() ? document->settings()->cssVariablesEnabled() : false)
+    , isCSSVariablesEnabled(document.settings() ? document.settings()->cssVariablesEnabled() : false)
 #endif
-    , needsSiteSpecificQuirks(document->settings() ? document->settings()->needsSiteSpecificQuirks() : false)
-    , enforcesCSSMIMETypeInNoQuirksMode(!document->settings() || document->settings()->enforceCSSMIMETypeInNoQuirksMode())
-    , useLegacyBackgroundSizeShorthandBehavior(document->settings() ? document->settings()->useLegacyBackgroundSizeShorthandBehavior() : false)
+    , needsSiteSpecificQuirks(document.settings() ? document.settings()->needsSiteSpecificQuirks() : false)
+    , enforcesCSSMIMETypeInNoQuirksMode(!document.settings() || document.settings()->enforceCSSMIMETypeInNoQuirksMode())
+    , useLegacyBackgroundSizeShorthandBehavior(document.settings() ? document.settings()->useLegacyBackgroundSizeShorthandBehavior() : false)
 {
 }
 
@@ -586,7 +586,7 @@ static inline bool isSimpleLengthPropertyID(CSSPropertyID propertyId, bool& acce
     case CSSPropertyWebkitShapeMargin:
     case CSSPropertyWebkitShapePadding:
         acceptsNegativeNumbers = false;
-        return RuntimeEnabledFeatures::cssShapesEnabled();
+        return RuntimeEnabledFeatures::sharedFeatures().cssShapesEnabled();
 #endif
     case CSSPropertyBottom:
     case CSSPropertyLeft:
@@ -1031,13 +1031,13 @@ static inline bool isValidKeywordPropertyAndValue(CSSPropertyID propertyId, int 
         break;
 #if ENABLE(CSS_EXCLUSIONS)
     case CSSPropertyWebkitWrapFlow:
-        if (!RuntimeEnabledFeatures::cssExclusionsEnabled())
+        if (!RuntimeEnabledFeatures::sharedFeatures().cssExclusionsEnabled())
             return false;
         if (valueID == CSSValueAuto || valueID == CSSValueBoth || valueID == CSSValueStart || valueID == CSSValueEnd || valueID == CSSValueMaximum || valueID == CSSValueClear)
             return true;
         break;
     case CSSPropertyWebkitWrapThrough:
-        if (!RuntimeEnabledFeatures::cssExclusionsEnabled())
+        if (!RuntimeEnabledFeatures::sharedFeatures().cssExclusionsEnabled())
             return false;
         if (valueID == CSSValueWrap || valueID == CSSValueNone)
             return true;
@@ -1305,7 +1305,7 @@ PassRefPtr<CSSValueList> CSSParser::parseFontFaceValue(const AtomicString& strin
 }
 
 #if ENABLE(CSS_VARIABLES)
-bool CSSParser::parseValue(MutableStylePropertySet* declaration, CSSPropertyID propertyID, const String& string, bool important, Document* document)
+bool CSSParser::parseValue(MutableStylePropertySet* declaration, CSSPropertyID propertyID, const String& string, bool important, Document& document)
 {
     ASSERT(!string.isEmpty());
 
@@ -1615,16 +1615,16 @@ void CSSParser::clearProperties()
     m_hasFontFaceOnlyValues = false;
 }
 
-KURL CSSParser::completeURL(const CSSParserContext& context, const String& url)
+URL CSSParser::completeURL(const CSSParserContext& context, const String& url)
 {
     if (url.isNull())
-        return KURL();
+        return URL();
     if (context.charset.isEmpty())
-        return KURL(context.baseURL, url);
-    return KURL(context.baseURL, url, context.charset);
+        return URL(context.baseURL, url);
+    return URL(context.baseURL, url, context.charset);
 }
 
-KURL CSSParser::completeURL(const String& url) const
+URL CSSParser::completeURL(const String& url) const
 {
     return completeURL(m_context, url);
 }
@@ -2702,6 +2702,7 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
         parsedValue = parseGridPosition();
         break;
 
+    case CSSPropertyWebkitGridArea:
     case CSSPropertyWebkitGridColumn:
     case CSSPropertyWebkitGridRow: {
         if (!cssGridLayoutEnabled())
@@ -2833,6 +2834,13 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
     case CSSPropertyWebkitDashboardRegion: // <dashboard-region> | <dashboard-region>
         if (value->unit == CSSParserValue::Function || id == CSSValueNone)
             return parseDashboardRegions(propId, important);
+        break;
+#endif
+
+#if PLATFORM(IOS)
+    case CSSPropertyWebkitTouchCallout:
+        if (id == CSSValueDefault || id == CSSValueNone)
+            validPrimitive = true;
         break;
 #endif
     // End Apple-specific properties
@@ -3004,7 +3012,7 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
 #if ENABLE(CSS_SHAPES)
     case CSSPropertyWebkitShapeInside:
     case CSSPropertyWebkitShapeOutside:
-        if (!RuntimeEnabledFeatures::cssShapesEnabled())
+        if (!RuntimeEnabledFeatures::sharedFeatures().cssShapesEnabled())
             return false;
         if (id == CSSValueAuto)
             validPrimitive = true;
@@ -3019,7 +3027,7 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
         break;
     case CSSPropertyWebkitShapeMargin:
     case CSSPropertyWebkitShapePadding:
-        validPrimitive = (RuntimeEnabledFeatures::cssShapesEnabled() && !id && validUnit(value, FLength | FNonNeg));
+        validPrimitive = (RuntimeEnabledFeatures::sharedFeatures().cssShapesEnabled() && !id && validUnit(value, FLength | FNonNeg));
         break;
 #endif
 #if ENABLE(CSS_IMAGE_ORIENTATION)
@@ -4885,24 +4893,30 @@ bool CSSParser::parseGridItemPositionShorthand(CSSPropertyID shorthandId, bool i
 {
     ShorthandScope scope(this, shorthandId);
     const StylePropertyShorthand& shorthand = shorthandForProperty(shorthandId);
-    ASSERT(shorthand.length() == 2);
     if (!parseValue(shorthand.properties()[0], important))
         return false;
 
-    if (!m_valueList->current()) {
-        // Only one value was specified, the opposite value should be set to 'auto'.
-        // FIXME: If the first property was <ident>, the opposite value should be the same <ident>.
-        addProperty(shorthand.properties()[1], cssValuePool().createIdentifierValue(CSSValueAuto), important);
-        return true;
+    size_t index = 1;
+    for (; index < shorthand.length(); ++index) {
+        if (!m_valueList->current())
+            break;
+
+        if (!isForwardSlashOperator(m_valueList->current()))
+            return false;
+
+        if (!m_valueList->next())
+            return false;
+
+        if (!parseValue(shorthand.properties()[index], important))
+            return false;
     }
 
-    if (!isForwardSlashOperator(m_valueList->current()))
-        return false;
+    // Only some values out of the {2|4} positions were specified, the other values should be set to 'auto'.
+    // FIXME: If the first property was <ident>, the opposite value should be the same <ident>.
+    for (; index < shorthand.length(); ++index)
+        addProperty(shorthand.properties()[index], cssValuePool().createIdentifierValue(CSSValueAuto), important);
 
-    if (!m_valueList->next())
-        return false;
-
-    return parseValue(shorthand.properties()[1], important);
+    return true;
 }
 
 bool CSSParser::parseGridTrackList(CSSPropertyID propId, bool important)
@@ -6606,13 +6620,6 @@ PassRefPtr<CSSValueList> CSSParser::parseShadow(CSSParserValueList* valueList, C
             if (!context.allowLength())
                 return 0;
 
-            // We don't support viewport units for shadow values.
-            if (val->unit == CSSPrimitiveValue::CSS_VW
-                || val->unit == CSSPrimitiveValue::CSS_VH
-                || val->unit == CSSPrimitiveValue::CSS_VMIN
-                || val->unit == CSSPrimitiveValue::CSS_VMAX)
-                return 0;
-
             // Blur radius must be non-negative.
             if (context.allowBlur && !validUnit(val, FLength | FNonNeg, CSSStrictMode))
                 return 0;
@@ -7502,7 +7509,7 @@ bool CSSParser::parseDeprecatedGradient(CSSParserValueList* valueList, RefPtr<CS
         a = args->next();
         if (!a || a->unit != CSSPrimitiveValue::CSS_NUMBER)
             return false;
-        static_cast<CSSRadialGradientValue*>(result.get())->setFirstRadius(createPrimitiveNumericValue(a));
+        toCSSRadialGradientValue(result.get())->setFirstRadius(createPrimitiveNumericValue(a));
 
         // Comma after the first radius.
         a = args->next();
@@ -7539,7 +7546,7 @@ bool CSSParser::parseDeprecatedGradient(CSSParserValueList* valueList, RefPtr<CS
         a = args->next();
         if (!a || a->unit != CSSPrimitiveValue::CSS_NUMBER)
             return false;
-        static_cast<CSSRadialGradientValue*>(result.get())->setSecondRadius(createPrimitiveNumericValue(a));
+        toCSSRadialGradientValue(result.get())->setSecondRadius(createPrimitiveNumericValue(a));
     }
 
     // We now will accept any number of stops (0 or more).
@@ -8784,7 +8791,7 @@ PassRefPtr<WebKitCSSMixFunctionValue> CSSParser::parseMixFunction(CSSParserValue
         unsigned argNumber = argsList->currentIndex();
         if (!argNumber) {
             if (arg->unit == CSSPrimitiveValue::CSS_URI) {
-                KURL shaderURL = completeURL(arg->string);
+                URL shaderURL = completeURL(arg->string);
                 value = WebKitCSSShaderValue::create(shaderURL.string());
             }
         } else if (argNumber == 1 || argNumber == 2) {
@@ -8974,7 +8981,7 @@ PassRefPtr<WebKitCSSFilterValue> CSSParser::parseCustomFilterFunctionWithInlineS
         if (arg->id == CSSValueNone)
             value = cssValuePool().createIdentifierValue(CSSValueNone);
         else if (arg->unit == CSSPrimitiveValue::CSS_URI) {
-            KURL shaderURL = completeURL(arg->string);
+            URL shaderURL = completeURL(arg->string);
             value = WebKitCSSShaderValue::create(shaderURL.string());
             hadAtLeastOneCustomShader = true;
         } else if (argsList->currentIndex() == 1 && arg->unit == CSSParserValue::Function) {
@@ -12199,7 +12206,7 @@ static CSSPropertyID cssPropertyID(const CharacterType* propertyName, unsigned l
 #if ENABLE(LEGACY_CSS_VENDOR_PREFIXES)
         // If the prefix is -apple- or -khtml-, change it to -webkit-.
         // This makes the string one character longer.
-        if (RuntimeEnabledFeatures::legacyCSSVendorPrefixesEnabled()
+        if (RuntimeEnabledFeatures::sharedFeatures().legacyCSSVendorPrefixesEnabled()
             && (hasPrefix(buffer, length, "-apple-") || hasPrefix(buffer, length, "-khtml-"))) {
             memmove(buffer + 7, buffer + 6, length + 1 - 6);
             memcpy(buffer, "-webkit", 7);

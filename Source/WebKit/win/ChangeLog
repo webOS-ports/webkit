@@ -1,3 +1,147 @@
+2013-09-30  Andreas Kling  <akling@apple.com>
+
+        Try to fix the Windows build.
+
+        * WebFrame.cpp:
+        (WebFrame::pauseAnimation):
+        (WebFrame::pauseTransition):
+
+2013-09-27  Roger Fong  <roger_fong@apple.com>
+
+        [Windows] Unreviewed build fix following r156560.
+
+        * WebView.h:
+
+2013-09-26  Darin Adler  <darin@apple.com>
+
+        rename KURL to URL
+        https://bugs.webkit.org/show_bug.cgi?id=16214
+
+        Reviewed by Andreas Kling.
+
+        * many files: Renamed, using script.
+
+2013-09-27  Darin Adler  <darin@apple.com>
+
+        Add empty MainFrame class
+        https://bugs.webkit.org/show_bug.cgi?id=121770
+
+        Reviewed by Andreas Kling.
+
+        * win/WebCoreSupport/WebDragClient.cpp:
+        * win/WebCoreSupport/WebContextMenuClient.cpp:
+        * win/WebDropSource.cpp:
+        * win/WebFrame.cpp:
+        * win/WebView.cpp:
+        Include MainFrame.h instead of Frame.h as needed.
+
+2013-09-25  Roger Fong  <roger_fong@apple.com>
+
+        [Windows] Attempting to scroll from a non-scrollable layer results the main document getting scrolled.
+        https://bugs.webkit.org/show_bug.cgi?id=121889.
+        <rdar://problem/15072441>
+
+        Reviewed by Timothy Horton.
+
+        * WebView.cpp:
+        (WebView::gesture): 
+        Call scrollByRecursively on the current RenderLayer's enclosingScrollableLayer to make sure that the method
+        doesn't bail early and end up just scrolling the main document instead of the next scrollable layer in the RenderLayer tree.
+
+2013-09-25  Patrick Gansterer  <paroga@webkit.org>
+
+        [WIN] Replace CF time functions with Windows API functions in WebHistory
+        https://bugs.webkit.org/show_bug.cgi?id=121599
+
+        Reviewed by Brent Fulgham.
+
+        This reduces the dependencies on the CoreFoundation library.
+
+        * WebHistory.cpp:
+        (addDayToSystemTime):
+        (getDayBoundaries):
+        (beginningOfDay):
+        (dateKey):
+        (WebHistory::orderedLastVisitedDays):
+        * WebHistory.h:
+
+2013-09-24  Brent Fulgham  <bfulgham@apple.com>
+
+        [Windows] Refactor RuntimeEnabledFeatures as a Singleton.
+        https://bugs.webkit.org/show_bug.cgi?id=121883
+
+        Reviewed by Jer Noble.
+
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged): Use singleton accessor
+
+2013-09-24  Roger Fong  <roger_fong@apple.com>
+
+        [Windows] Overpanning occurs even when what is being panned isn't the main document.
+        https://bugs.webkit.org/show_bug.cgi?id=121885.
+        <rdar://problem/15072332>.
+
+        Reviewed by Brent Fulgham.
+
+        * WebView.cpp:
+        (WebView::gestureNotify):
+        (WebView::gesture):
+
+2013-09-24  Brent Fulgham  <bfulgham@apple.com>
+
+        [Windows] Unreviewed crash fix after r156321.
+
+        Fix a few mistakes in the use of Vectors and counting that introduced test crashes.
+
+        * WebHistory.cpp:
+        (WebHistory::removeAllItems): Loop termination tried to test an unsigned for negative size.
+        (WebHistory::removeItemFromDateCaches): Vector was being created with empty entries.
+        (WebHistory::addItemToDateCaches): Ditto.
+
+2013-09-24  Patrick Gansterer  <paroga@webkit.org>
+
+        Make WebHistory more type safe
+        https://bugs.webkit.org/show_bug.cgi?id=121801
+
+        Reviewed by Brent Fulgham.
+
+        Use a WTF::Vector instead of a CFMutableArray to avoid
+        casting from void* all the time when accessing the entries.
+        This reduces the dependencies on CoreFoundation too.
+
+        * WebHistory.cpp:
+        (getDayBoundaries):
+        (beginningOfDay):
+        (dateKey):
+        (WebHistory::orderedItemsLastVisitedOnDay):
+        (WebHistory::removeItemFromDateCaches):
+        (WebHistory::addItemToDateCaches):
+        * WebHistory.h:
+
+2013-09-23  Patrick Gansterer  <paroga@webkit.org>
+
+        [WIN] Implement WebMutableURLRequest::setHTTPBody()
+        https://bugs.webkit.org/show_bug.cgi?id=91920
+
+        Reviewed by Brent Fulgham.
+
+        * WebMutableURLRequest.cpp:
+        (WebMutableURLRequest::setHTTPBody):
+        (WebMutableURLRequest::setHTTPBodyStream):
+
+2013-09-23  Patrick Gansterer  <paroga@webkit.org>
+
+        use NOMINMAX instead of #define min min
+        https://bugs.webkit.org/show_bug.cgi?id=73563
+
+        Reviewed by Brent Fulgham.
+
+        Use NOMINMAX instead of #define min/max as a cleaner
+        way of ensuring that Windows system header files don't
+        define min/max as macro in the first place.
+
+        * WebKitPrefix.h:
+
 2013-09-22  Sam Weinig  <sam@webkit.org>
 
         Try to fix the windows build (take 2).

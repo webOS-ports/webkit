@@ -1738,9 +1738,7 @@ class CppStyleTest(CppStyleTestBase):
         self.assert_lint('a<Foo*> t <<= &b & &c; // Test', '')
         self.assert_lint('a<Foo*> t <<= *b / &c; // Test', '')
         self.assert_lint('if (a=b == 1)', 'Missing spaces around =  [whitespace/operators] [4]')
-        self.assert_lint('a = 1<<20', 'Missing spaces around <<  [whitespace/operators] [3]')
         self.assert_lint('if (a = b == 1)', '')
-        self.assert_lint('a = 1 << 20', '')
         self.assert_multi_line_lint('#include <sys/io.h>\n', '')
         self.assert_multi_line_lint('#import <foo/bar.h>\n', '')
 
@@ -3440,7 +3438,7 @@ class PassPtrTest(CppStyleTestBase):
             'RefPtr<Type1> myFunction(int)\n'
             '{\n'
             '}',
-            'The return type should use PassRefPtr instead of RefPtr.  [readability/pass_ptr] [5]')
+            '')
         self.assert_pass_ptr_check(
             'OwnPtr<Type1> myFunction(int)\n'
             '{\n'

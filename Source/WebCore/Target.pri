@@ -71,7 +71,6 @@ SOURCES += \
     bindings/generic/RuntimeEnabledFeatures.cpp
 
 SOURCES += \
-     bindings/ScriptControllerBase.cpp \
      bindings/js/ArrayValue.cpp \
      bindings/js/BindingState.cpp \
      bindings/js/CallbackFunction.cpp \
@@ -79,18 +78,12 @@ SOURCES += \
      bindings/js/DOMWrapperWorld.cpp \
      bindings/js/Dictionary.cpp \
      bindings/js/GCController.cpp \
-     bindings/js/JSAudioBufferCustom.cpp \
      bindings/js/JSAttrCustom.cpp \
      bindings/js/JSBlobCustom.cpp \
      bindings/js/JSCDATASectionCustom.cpp \
-     bindings/js/JSCSSFontFaceRuleCustom.cpp \
-     bindings/js/JSCSSImportRuleCustom.cpp \
-     bindings/js/JSCSSMediaRuleCustom.cpp \
-     bindings/js/JSCSSPageRuleCustom.cpp \
      bindings/js/JSCSSRuleCustom.cpp \
      bindings/js/JSCSSRuleListCustom.cpp \
      bindings/js/JSCSSStyleDeclarationCustom.cpp \
-     bindings/js/JSCSSStyleRuleCustom.cpp \
      bindings/js/JSCSSValueCustom.cpp \
      bindings/js/JSCallbackData.cpp \
      bindings/js/JSCanvasRenderingContext2DCustom.cpp \
@@ -103,13 +96,11 @@ SOURCES += \
      bindings/js/JSDOMFormDataCustom.cpp \
      bindings/js/JSDOMGlobalObject.cpp \
      bindings/js/JSDOMGlobalObjectTask.cpp \
-     bindings/js/JSDOMImplementationCustom.cpp \
      bindings/js/JSDOMMimeTypeArrayCustom.cpp \
      bindings/js/JSDOMPluginArrayCustom.cpp \
      bindings/js/JSDOMPluginCustom.cpp \
      bindings/js/JSDOMStringListCustom.cpp \
      bindings/js/JSDOMStringMapCustom.cpp \
-     bindings/js/JSDOMTokenListCustom.cpp \
      bindings/js/JSDOMWindowBase.cpp \
      bindings/js/JSDOMWindowCustom.cpp \
      bindings/js/JSDOMWindowShell.cpp \
@@ -142,7 +133,6 @@ SOURCES += \
      bindings/js/JSHTMLObjectElementCustom.cpp \
      bindings/js/JSHTMLOptionsCollectionCustom.cpp \
      bindings/js/JSHTMLSelectElementCustom.cpp \
-     bindings/js/JSHTMLStyleElementCustom.cpp \
      bindings/js/JSHTMLTemplateElementCustom.cpp \
      bindings/js/JSHistoryCustom.cpp \
      bindings/js/JSImageConstructor.cpp \
@@ -153,7 +143,6 @@ SOURCES += \
      bindings/js/JSLazyEventListener.cpp \
      bindings/js/JSLocationCustom.cpp \
      bindings/js/JSMainThreadExecState.cpp \
-     bindings/js/JSMediaListCustom.cpp \
      bindings/js/JSMessageChannelCustom.cpp \
      bindings/js/JSMessageEventCustom.cpp \
      bindings/js/JSMessagePortCustom.cpp \
@@ -168,7 +157,6 @@ SOURCES += \
      bindings/js/JSNodeListCustom.cpp \
      bindings/js/JSPluginElementFunctions.cpp \
      bindings/js/JSPopStateEventCustom.cpp \
-     bindings/js/JSProcessingInstructionCustom.cpp \
      bindings/js/JSRequestAnimationFrameCallbackCustom.cpp \
      bindings/js/JSRTCStatsResponseCustom.cpp \
      bindings/js/JSStorageCustom.cpp \
@@ -178,11 +166,8 @@ SOURCES += \
      bindings/js/JSTouchCustom.cpp \
      bindings/js/JSTouchListCustom.cpp \
      bindings/js/JSTreeWalkerCustom.cpp \
-     bindings/js/JSWebKitCSSKeyframeRuleCustom.cpp \
-     bindings/js/JSWebKitCSSKeyframesRuleCustom.cpp \
      bindings/js/JSWebKitPointCustom.cpp \
      bindings/js/JSXMLHttpRequestCustom.cpp \
-     bindings/js/JSXMLHttpRequestUploadCustom.cpp \
      bindings/js/JSXPathResultCustom.cpp \
      bindings/js/PageScriptDebugServer.cpp \
      bindings/js/ScheduledAction.cpp \
@@ -220,27 +205,6 @@ SOURCES += \
 
 
 SOURCES += \
-    Modules/filesystem/DOMFilePath.cpp \
-    Modules/filesystem/DOMFileSystem.cpp \
-    Modules/filesystem/DOMFileSystemBase.cpp \
-    Modules/filesystem/DOMFileSystemSync.cpp \
-    Modules/filesystem/DOMWindowFileSystem.cpp \
-    Modules/filesystem/DirectoryEntry.cpp \
-    Modules/filesystem/DirectoryEntrySync.cpp \
-    Modules/filesystem/DirectoryReader.cpp \
-    Modules/filesystem/DirectoryReaderSync.cpp \
-    Modules/filesystem/Entry.cpp \
-    Modules/filesystem/EntryArray.cpp \
-    Modules/filesystem/EntryArraySync.cpp \
-    Modules/filesystem/EntryBase.cpp \
-    Modules/filesystem/EntrySync.cpp \
-    Modules/filesystem/FileEntry.cpp \
-    Modules/filesystem/FileEntrySync.cpp \
-    Modules/filesystem/FileWriter.cpp \
-    Modules/filesystem/FileWriterBase.cpp \
-    Modules/filesystem/FileWriterSync.cpp \
-    Modules/filesystem/LocalFileSystem.cpp \
-    Modules/filesystem/WorkerGlobalScopeFileSystem.cpp \
     Modules/navigatorcontentutils/NavigatorContentUtils.cpp \
     Modules/notifications/DOMWindowNotifications.cpp \
     Modules/notifications/Notification.cpp \
@@ -409,7 +373,6 @@ SOURCES += \
     dom/EventException.cpp \
     dom/EventListenerMap.cpp \
     dom/EventNames.cpp \
-    dom/EventPathWalker.cpp \
     dom/EventRetargeter.cpp \
     dom/EventTarget.cpp \
     dom/ExceptionBase.cpp \
@@ -748,7 +711,6 @@ SOURCES += \
     html/parser/XSSAuditorDelegate.cpp \
     html/shadow/ContentDistributor.cpp \
     html/shadow/DetailsMarkerControl.cpp \
-    html/shadow/HTMLContentElement.cpp \
     html/shadow/InsertionPoint.cpp \
     html/shadow/MediaControls.cpp \
     html/shadow/MediaControlsApple.cpp \
@@ -912,6 +874,7 @@ SOURCES += \
     page/GroupSettings.cpp \
     page/History.cpp \
     page/Location.cpp \
+    page/MainFrame.cpp \
     page/MouseEventWithHitTestResults.cpp \
     page/Navigator.cpp \
     page/NavigatorBase.cpp \
@@ -1042,7 +1005,7 @@ SOURCES += \
     platform/image-decoders/gif/GIFImageDecoder.cpp \
     platform/image-decoders/gif/GIFImageReader.cpp\
     platform/KillRingNone.cpp \
-    platform/KURL.cpp \
+    platform/URL.cpp \
     platform/Language.cpp \
     platform/Length.cpp \
     platform/LengthBox.cpp \
@@ -1119,7 +1082,6 @@ SOURCES += \
     platform/ThreadTimers.cpp \
     platform/Timer.cpp \
     platform/text/UnicodeRange.cpp \
-    platform/text/transcoder/FontTranscoder.cpp \
     platform/UUID.cpp \
     platform/Widget.cpp \
     platform/PlatformStrategies.cpp \
@@ -1194,7 +1156,6 @@ SOURCES += \
     rendering/RenderMultiColumnSet.cpp \
     rendering/RenderNamedFlowThread.cpp \
     rendering/RenderObject.cpp \
-    rendering/RenderObjectChildList.cpp \
     rendering/RenderProgress.cpp \
     rendering/RenderQuote.cpp \
     rendering/RenderRegion.cpp \
@@ -1329,7 +1290,6 @@ HEADERS += \
     accessibility/AccessibilityTableHeaderContainer.h \
     accessibility/AccessibilityTableRow.h \
     accessibility/AXObjectCache.h \
-    bindings/ScriptControllerBase.h \
     bindings/generic/ActiveDOMCallback.h \
     bindings/generic/BindingSecurity.h \
     bindings/generic/RuntimeEnabledFeatures.h
@@ -1616,7 +1576,6 @@ HEADERS += \
     dom/EventDispatchMediator.h \
     dom/EventListenerMap.h \
     dom/EventNames.h \
-    dom/EventPathWalker.h \
     dom/EventQueue.h \
     dom/EventSender.h \
     dom/EventTarget.h \
@@ -1917,7 +1876,6 @@ HEADERS += \
     html/parser/XSSAuditor.h \
     html/parser/XSSAuditorDelegate.h \
     html/shadow/ContentDistributor.h \
-    html/shadow/HTMLContentElement.h \
     html/shadow/MediaControlElementTypes.h \
     html/shadow/MediaControlElements.h \
     html/shadow/MediaControls.h \
@@ -2262,7 +2220,7 @@ HEADERS += \
     platform/image-decoders/gif/GIFImageReader.h \
     platform/image-decoders/png/PNGImageDecoder.h \
     platform/KillRing.h \
-    platform/KURL.h \
+    platform/URL.h \
     platform/Length.h \
     platform/LengthBox.h \
     platform/leveldb/LevelDBComparator.h \
@@ -2362,7 +2320,6 @@ HEADERS += \
     platform/text/TextEncodingRegistry.h \
     platform/text/TextStream.h \
     platform/text/UnicodeRange.h \
-    platform/text/transcoder/FontTranscoder.h \
     platform/ThreadGlobalData.h \
     platform/ThreadTimers.h \
     platform/Timer.h \
@@ -2461,7 +2418,6 @@ HEADERS += \
     rendering/RenderMenuList.h \
     rendering/RenderMeter.h \
     rendering/RenderMultiColumnBlock.h \
-    rendering/RenderObjectChildList.h \
     rendering/RenderObject.h \
     rendering/RenderProgress.h \
     rendering/RenderQuote.h \
@@ -2924,7 +2880,7 @@ SOURCES += \
     platform/graphics/qt/GlyphPageTreeNodeQt.cpp \
     platform/graphics/qt/SimpleFontDataQt.cpp \
     platform/graphics/qt/TileQt.cpp \
-    platform/qt/KURLQt.cpp \
+    platform/qt/URLQt.cpp \
     platform/qt/MIMETypeRegistryQt.cpp \
     platform/qt/PasteboardQt.cpp \
     platform/qt/PlatformKeyboardEventQt.cpp \
@@ -3065,23 +3021,23 @@ enable?(INDEXED_DATABASE) {
         Modules/indexeddb/IDBAny.h \
         Modules/indexeddb/IDBCallbacks.h \
         Modules/indexeddb/IDBCursor.h \
-        Modules/indexeddb/IDBCursorBackendImpl.h \
+        Modules/indexeddb/leveldb/IDBCursorBackendLevelDB.h \
         Modules/indexeddb/IDBCursorBackendInterface.h \
         Modules/indexeddb/IDBDatabase.h \
-        Modules/indexeddb/IDBDatabaseBackendImpl.h \
+        Modules/indexeddb/leveldb/IDBDatabaseBackendLevelDB.h \
         Modules/indexeddb/IDBDatabaseBackendInterface.h \
         Modules/indexeddb/IDBDatabaseError.h \
         Modules/indexeddb/IDBDatabaseException.h \
         Modules/indexeddb/IDBEventDispatcher.h \
         Modules/indexeddb/IDBFactory.h \
-        Modules/indexeddb/IDBFactoryBackendImpl.h \
+        Modules/indexeddb/leveldb/IDBFactoryBackendLevelDB.h \
         Modules/indexeddb/IDBFactoryBackendInterface.h \
         Modules/indexeddb/IDBHistograms.h \
         Modules/indexeddb/IDBIndex.h \
         Modules/indexeddb/IDBKey.h \
         Modules/indexeddb/IDBKeyRange.h \
         Modules/indexeddb/IDBObjectStore.h \
-        Modules/indexeddb/IDBObjectStoreBackendImpl.h \
+        Modules/indexeddb/leveldb/IDBObjectStoreBackendLevelDB.h \
         Modules/indexeddb/IDBRequest.h \
         Modules/indexeddb/IDBTransaction.h \
         Modules/indexeddb/IndexedDB.h
@@ -3094,19 +3050,19 @@ enable?(INDEXED_DATABASE) {
         Modules/indexeddb/DOMWindowIndexedDatabase.cpp \
         Modules/indexeddb/IDBAny.cpp \
         Modules/indexeddb/IDBCursor.cpp \
-        Modules/indexeddb/IDBCursorBackendImpl.cpp \
+        Modules/indexeddb/leveldb/IDBCursorBackendLevelDB.cpp \
         Modules/indexeddb/IDBDatabase.cpp \
-        Modules/indexeddb/IDBDatabaseBackendImpl.cpp \
+        Modules/indexeddb/leveldb/IDBDatabaseBackendLevelDB.cpp \
         Modules/indexeddb/IDBDatabaseException.cpp \
         Modules/indexeddb/IDBEventDispatcher.cpp \
         Modules/indexeddb/IDBFactory.cpp \
         Modules/indexeddb/IDBFactoryBackendInterface.cpp \
-        Modules/indexeddb/IDBFactoryBackendImpl.cpp \
+        Modules/indexeddb/leveldb/IDBFactoryBackendLevelDB.cpp \
         Modules/indexeddb/IDBIndex.cpp \
         Modules/indexeddb/IDBKey.cpp \
         Modules/indexeddb/IDBKeyRange.cpp \
         Modules/indexeddb/IDBObjectStore.cpp \
-        Modules/indexeddb/IDBObjectStoreBackendImpl.cpp \
+        Modules/indexeddb/leveldb/IDBObjectStoreBackendLevelDB.cpp \
         Modules/indexeddb/IDBRequest.cpp \
         Modules/indexeddb/IDBTransaction.cpp \
         Modules/indexeddb/PageGroupIndexedDatabase.cpp \
@@ -3125,51 +3081,6 @@ enable?(DATA_TRANSFER_ITEMS) {
         dom/StringCallback.cpp \
         platform/qt/DataTransferItemQt.cpp \
         platform/qt/DataTransferItemListQt.cpp
-}
-
-enable?(FILE_SYSTEM) {
-    HEADERS += \
-        Modules/filesystem/AsyncFileWriter.h \
-        Modules/filesystem/DOMFilePath.h \
-        Modules/filesystem/DOMFileSystem.h \
-        Modules/filesystem/DOMFileSystemBase.h \
-        Modules/filesystem/DOMFileSystemSync.h \
-        Modules/filesystem/DirectoryEntry.h \
-        Modules/filesystem/DirectoryEntrySync.h \
-        Modules/filesystem/DirectoryReader.h \
-        Modules/filesystem/DirectoryReaderBase.h \
-        Modules/filesystem/DirectoryReaderSync.h \
-        Modules/filesystem/EntriesCallback.h \
-        Modules/filesystem/Entry.h \
-        Modules/filesystem/EntryArray.h \
-        Modules/filesystem/EntryArraySync.h \
-        Modules/filesystem/EntryBase.h \
-        Modules/filesystem/EntryCallback.h \
-        Modules/filesystem/EntrySync.h \
-        Modules/filesystem/ErrorCallback.h \
-        Modules/filesystem/FileCallback.h \
-        Modules/filesystem/FileEntry.h \
-        Modules/filesystem/FileEntrySync.h \
-        Modules/filesystem/FileSystemCallback.h \
-        Modules/filesystem/FileSystemCallbacks.h \
-        Modules/filesystem/FileSystemFlags.h \
-        Modules/filesystem/FileWriter.h \
-        Modules/filesystem/FileWriterBase.h \
-        Modules/filesystem/FileWriterBaseCallback.h \
-        Modules/filesystem/FileWriterCallback.h \
-        Modules/filesystem/FileWriterClient.h \
-        Modules/filesystem/FileWriterSync.h \
-        Modules/filesystem/LocalFileSystem.h \
-        Modules/filesystem/Metadata.h \
-        Modules/filesystem/MetadataCallback.h \
-        platform/AsyncFileSystem.h \
-        platform/AsyncFileSystemCallbacks.h \
-        platform/FileMetadata.h
-
-    SOURCES += \
-        bindings/js/JSEntryCustom.cpp \
-        bindings/js/JSEntrySyncCustom.cpp \
-        platform/AsyncFileSystem.cpp
 }
 
 enable?(MEDIA_SOURCE) {

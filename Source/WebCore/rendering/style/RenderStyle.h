@@ -745,8 +745,8 @@ public:
     void getTextShadowExtent(LayoutUnit& top, LayoutUnit& right, LayoutUnit& bottom, LayoutUnit& left) const { getShadowExtent(textShadow(), top, right, bottom, left); }
     void getTextShadowHorizontalExtent(LayoutUnit& left, LayoutUnit& right) const { getShadowHorizontalExtent(textShadow(), left, right); }
     void getTextShadowVerticalExtent(LayoutUnit& top, LayoutUnit& bottom) const { getShadowVerticalExtent(textShadow(), top, bottom); }
-    void getTextShadowInlineDirectionExtent(LayoutUnit& logicalLeft, LayoutUnit& logicalRight) { getShadowInlineDirectionExtent(textShadow(), logicalLeft, logicalRight); }
-    void getTextShadowBlockDirectionExtent(LayoutUnit& logicalTop, LayoutUnit& logicalBottom) { getShadowBlockDirectionExtent(textShadow(), logicalTop, logicalBottom); }
+    void getTextShadowInlineDirectionExtent(LayoutUnit& logicalLeft, LayoutUnit& logicalRight) const { getShadowInlineDirectionExtent(textShadow(), logicalLeft, logicalRight); }
+    void getTextShadowBlockDirectionExtent(LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const { getShadowBlockDirectionExtent(textShadow(), logicalTop, logicalBottom); }
 
     float textStrokeWidth() const { return rareInheritedData->textStrokeWidth; }
     ColorSpace colorSpace() const { return static_cast<ColorSpace>(rareInheritedData->colorSpace); }
@@ -797,8 +797,8 @@ public:
     LayoutBoxExtent getBoxShadowInsetExtent() const { return getShadowInsetExtent(boxShadow()); }
     void getBoxShadowHorizontalExtent(LayoutUnit& left, LayoutUnit& right) const { getShadowHorizontalExtent(boxShadow(), left, right); }
     void getBoxShadowVerticalExtent(LayoutUnit& top, LayoutUnit& bottom) const { getShadowVerticalExtent(boxShadow(), top, bottom); }
-    void getBoxShadowInlineDirectionExtent(LayoutUnit& logicalLeft, LayoutUnit& logicalRight) { getShadowInlineDirectionExtent(boxShadow(), logicalLeft, logicalRight); }
-    void getBoxShadowBlockDirectionExtent(LayoutUnit& logicalTop, LayoutUnit& logicalBottom) { getShadowBlockDirectionExtent(boxShadow(), logicalTop, logicalBottom); }
+    void getBoxShadowInlineDirectionExtent(LayoutUnit& logicalLeft, LayoutUnit& logicalRight) const { getShadowInlineDirectionExtent(boxShadow(), logicalLeft, logicalRight); }
+    void getBoxShadowBlockDirectionExtent(LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const { getShadowBlockDirectionExtent(boxShadow(), logicalTop, logicalBottom); }
 
 #if ENABLE(CSS_BOX_DECORATION_BREAK)
     EBoxDecorationBreak boxDecorationBreak() const { return m_box->boxDecorationBreak(); }
@@ -933,6 +933,9 @@ public:
     const LineClampValue& lineClamp() const { return rareNonInheritedData->lineClamp; }
 #if ENABLE(TOUCH_EVENTS)
     Color tapHighlightColor() const { return rareInheritedData->tapHighlightColor; }
+#endif
+#if PLATFORM(IOS)
+    bool touchCalloutEnabled() const { return rareInheritedData->touchCalloutEnabled; }
 #endif
 #if ENABLE(ACCELERATED_OVERFLOW_SCROLLING)
     bool useTouchOverflowScrolling() const { return rareInheritedData->useTouchOverflowScrolling; }
@@ -1441,6 +1444,9 @@ public:
 #if ENABLE(TOUCH_EVENTS)
     void setTapHighlightColor(const Color& c) { SET_VAR(rareInheritedData, tapHighlightColor, c); }
 #endif
+#if PLATFORM(IOS)
+    void setTouchCalloutEnabled(bool v) { SET_VAR(rareInheritedData, touchCalloutEnabled, v); }
+#endif
 #if ENABLE(ACCELERATED_OVERFLOW_SCROLLING)
     void setUseTouchOverflowScrolling(bool v) { SET_VAR(rareInheritedData, useTouchOverflowScrolling, v); }
 #endif
@@ -1781,6 +1787,9 @@ public:
 #if ENABLE(IOS_TEXT_AUTOSIZING)
     static TextSizeAdjustment initialTextSizeAdjust() { return TextSizeAdjustment(); }
 #endif
+#if PLATFORM(IOS)
+    static bool initialTouchCalloutEnabled() { return true; }
+#endif
 #if ENABLE(TOUCH_EVENTS)
     static Color initialTapHighlightColor();
 #endif
@@ -1803,7 +1812,7 @@ private:
     bool changeRequiresPositionedLayoutOnly(const RenderStyle*, unsigned& changedContextSensitiveProperties) const;
     bool changeRequiresLayerRepaint(const RenderStyle*, unsigned& changedContextSensitiveProperties) const;
     bool changeRequiresRepaint(const RenderStyle*, unsigned& changedContextSensitiveProperties) const;
-    bool changeRequiresRepaintIfText(const RenderStyle*, unsigned& changedContextSensitiveProperties) const;
+    bool changeRequiresRepaintIfTextOrBorderOrOutline(const RenderStyle*, unsigned& changedContextSensitiveProperties) const;
     bool changeRequiresRecompositeLayer(const RenderStyle*, unsigned& changedContextSensitiveProperties) const;
 
     void setVisitedLinkColor(const Color&);

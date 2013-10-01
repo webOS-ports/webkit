@@ -1,10 +1,10 @@
 set(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}"
     "${WEBCORE_DIR}/Modules/battery"
-    "${WEBCORE_DIR}/Modules/filesystem"
     "${WEBCORE_DIR}/Modules/gamepad"
     "${WEBCORE_DIR}/Modules/geolocation"
     "${WEBCORE_DIR}/Modules/indexeddb"
+    "${WEBCORE_DIR}/Modules/indexeddb/leveldb"
     "${WEBCORE_DIR}/Modules/indieui"
     "${WEBCORE_DIR}/Modules/mediasource"
     "${WEBCORE_DIR}/Modules/mediastream"
@@ -73,7 +73,6 @@ set(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/network"
     "${WEBCORE_DIR}/platform/sql"
     "${WEBCORE_DIR}/platform/text"
-    "${WEBCORE_DIR}/platform/text/transcoder"
     "${WEBCORE_DIR}/plugins"
     "${WEBCORE_DIR}/rendering"
     "${WEBCORE_DIR}/rendering/mathml"
@@ -116,7 +115,6 @@ set(WebCore_INCLUDE_DIRECTORIES
 
 set(WebCore_IDL_INCLUDES
     Modules/battery
-    Modules/filesystem
     Modules/gamepad
     Modules/geolocation
     Modules/indexeddb
@@ -153,33 +151,6 @@ set(WebCore_IDL_FILES
     Modules/battery/BatteryManager.idl
     Modules/battery/NavigatorBattery.idl
 
-    Modules/filesystem/DOMFileSystem.idl
-    Modules/filesystem/DOMFileSystemSync.idl
-    Modules/filesystem/DOMWindowFileSystem.idl
-    Modules/filesystem/DataTransferItemFileSystem.idl
-    Modules/filesystem/DirectoryEntry.idl
-    Modules/filesystem/DirectoryEntrySync.idl
-    Modules/filesystem/DirectoryReader.idl
-    Modules/filesystem/DirectoryReaderSync.idl
-    Modules/filesystem/EntriesCallback.idl
-    Modules/filesystem/Entry.idl
-    Modules/filesystem/EntryArray.idl
-    Modules/filesystem/EntryArraySync.idl
-    Modules/filesystem/EntryCallback.idl
-    Modules/filesystem/EntrySync.idl
-    Modules/filesystem/ErrorCallback.idl
-    Modules/filesystem/FileCallback.idl
-    Modules/filesystem/FileEntry.idl
-    Modules/filesystem/FileEntrySync.idl
-    Modules/filesystem/FileSystemCallback.idl
-    Modules/filesystem/FileWriter.idl
-    Modules/filesystem/FileWriterCallback.idl
-    Modules/filesystem/FileWriterSync.idl
-    Modules/filesystem/HTMLInputElementFileSystem.idl
-    Modules/filesystem/Metadata.idl
-    Modules/filesystem/MetadataCallback.idl
-    Modules/filesystem/WorkerGlobalScopeFileSystem.idl
-
     Modules/gamepad/Gamepad.idl
     Modules/gamepad/GamepadList.idl
     Modules/gamepad/NavigatorGamepad.idl
@@ -215,6 +186,7 @@ set(WebCore_IDL_FILES
     Modules/mediasource/WebKitSourceBuffer.idl
     Modules/mediasource/WebKitSourceBufferList.idl
 
+    Modules/mediastream/AudioStreamTrack.idl
     Modules/mediastream/MediaStream.idl
     Modules/mediastream/MediaStreamEvent.idl
     Modules/mediastream/MediaStreamTrack.idl
@@ -238,6 +210,7 @@ set(WebCore_IDL_FILES
     Modules/mediastream/RTCStatsReport.idl
     Modules/mediastream/RTCStatsResponse.idl
     Modules/mediastream/SourceInfo.idl
+    Modules/mediastream/VideoStreamTrack.idl
 
     Modules/navigatorcontentutils/NavigatorContentUtils.idl
 
@@ -539,8 +512,6 @@ set(WebCore_IDL_FILES
     html/canvas/WebGLUniformLocation.idl
     html/canvas/WebGLVertexArrayObjectOES.idl
 
-    html/shadow/HTMLContentElement.idl
-
     inspector/InjectedScriptHost.idl
     inspector/InspectorFrontendHost.idl
     inspector/JavaScriptCallFrame.idl
@@ -769,30 +740,6 @@ set(WebCore_SOURCES
     Modules/battery/BatteryStatus.cpp
     Modules/battery/NavigatorBattery.cpp
 
-    Modules/filesystem/DOMFilePath.cpp
-    Modules/filesystem/DOMFileSystem.cpp
-    Modules/filesystem/DOMFileSystemBase.cpp
-    Modules/filesystem/DOMFileSystemSync.cpp
-    Modules/filesystem/DOMWindowFileSystem.cpp
-    Modules/filesystem/DirectoryEntry.cpp
-    Modules/filesystem/DirectoryEntrySync.cpp
-    Modules/filesystem/DirectoryReader.cpp
-    Modules/filesystem/DirectoryReaderSync.cpp
-    Modules/filesystem/Entry.cpp
-    Modules/filesystem/EntryArray.cpp
-    Modules/filesystem/EntryArraySync.cpp
-    Modules/filesystem/EntryBase.cpp
-    Modules/filesystem/EntrySync.cpp
-    Modules/filesystem/FileEntry.cpp
-    Modules/filesystem/FileEntrySync.cpp
-    Modules/filesystem/FileSystemCallbacks.cpp
-    Modules/filesystem/FileWriter.cpp
-    Modules/filesystem/FileWriterBase.cpp
-    Modules/filesystem/FileWriterSync.cpp
-    Modules/filesystem/HTMLInputElementFileSystem.cpp
-    Modules/filesystem/LocalFileSystem.cpp
-    Modules/filesystem/WorkerGlobalScopeFileSystem.cpp
-
     Modules/gamepad/Gamepad.cpp
     Modules/gamepad/GamepadList.cpp
     Modules/gamepad/NavigatorGamepad.cpp
@@ -804,40 +751,41 @@ set(WebCore_SOURCES
 
     Modules/indexeddb/DOMWindowIndexedDatabase.cpp
     Modules/indexeddb/IDBAny.cpp
-    Modules/indexeddb/IDBBackingStore.cpp
     Modules/indexeddb/IDBCursor.cpp
-    Modules/indexeddb/IDBCursorBackendImpl.cpp
     Modules/indexeddb/IDBCursorWithValue.cpp
     Modules/indexeddb/IDBDatabase.cpp
-    Modules/indexeddb/IDBDatabaseBackendImpl.cpp
     Modules/indexeddb/IDBDatabaseCallbacksImpl.cpp
     Modules/indexeddb/IDBDatabaseException.cpp
     Modules/indexeddb/IDBEventDispatcher.cpp
     Modules/indexeddb/IDBFactory.cpp
-    Modules/indexeddb/IDBFactoryBackendImpl.cpp
     Modules/indexeddb/IDBFactoryBackendInterface.cpp
     Modules/indexeddb/IDBIndex.cpp
     Modules/indexeddb/IDBKey.cpp
     Modules/indexeddb/IDBKeyPath.cpp
     Modules/indexeddb/IDBKeyRange.cpp
-    Modules/indexeddb/IDBLevelDBCoding.cpp
     Modules/indexeddb/IDBObjectStore.cpp
-    Modules/indexeddb/IDBObjectStoreBackendImpl.cpp
     Modules/indexeddb/IDBOpenDBRequest.cpp
     Modules/indexeddb/IDBPendingTransactionMonitor.cpp
     Modules/indexeddb/IDBRequest.cpp
     Modules/indexeddb/IDBTransaction.cpp
-    Modules/indexeddb/IDBTransactionBackendImpl.cpp
-    Modules/indexeddb/IDBTransactionCoordinator.cpp
     Modules/indexeddb/IDBVersionChangeEvent.cpp
     Modules/indexeddb/PageGroupIndexedDatabase.cpp
     Modules/indexeddb/WorkerGlobalScopeIndexedDatabase.cpp
+    Modules/indexeddb/leveldb/IDBBackingStoreLevelDB.cpp
+    Modules/indexeddb/leveldb/IDBCursorBackendLevelDB.cpp
+    Modules/indexeddb/leveldb/IDBDatabaseBackendLevelDB.cpp
+    Modules/indexeddb/leveldb/IDBFactoryBackendLevelDB.cpp
+    Modules/indexeddb/leveldb/IDBLevelDBCoding.cpp
+    Modules/indexeddb/leveldb/IDBObjectStoreBackendLevelDB.cpp
+    Modules/indexeddb/leveldb/IDBTransactionBackendLevelDB.cpp
+    Modules/indexeddb/leveldb/IDBTransactionCoordinatorLevelDB.cpp
 
     Modules/mediasource/MediaSource.cpp
     Modules/mediasource/MediaSourceRegistry.cpp
     Modules/mediasource/SourceBuffer.cpp
     Modules/mediasource/SourceBufferList.cpp
 
+    Modules/mediastream/AudioStreamTrack.cpp
     Modules/mediastream/MediaConstraintsImpl.cpp
     Modules/mediastream/MediaStream.cpp
     Modules/mediastream/MediaStreamEvent.cpp
@@ -863,6 +811,7 @@ set(WebCore_SOURCES
     Modules/mediastream/SourceInfo.cpp
     Modules/mediastream/UserMediaController.cpp
     Modules/mediastream/UserMediaRequest.cpp
+    Modules/mediastream/VideoStreamTrack.cpp
 
     Modules/navigatorcontentutils/NavigatorContentUtils.cpp
 
@@ -998,8 +947,6 @@ set(WebCore_SOURCES
     accessibility/AccessibilityTableColumn.cpp
     accessibility/AccessibilityTableHeaderContainer.cpp
     accessibility/AccessibilityTableRow.cpp
-
-    bindings/ScriptControllerBase.cpp
 
     bindings/generic/ActiveDOMCallback.cpp
     bindings/generic/BindingSecurity.cpp
@@ -1170,7 +1117,6 @@ set(WebCore_SOURCES
     dom/EventException.cpp
     dom/EventListenerMap.cpp
     dom/EventNames.cpp
-    dom/EventPathWalker.cpp
     dom/EventRetargeter.cpp
     dom/EventTarget.cpp
     dom/ExceptionBase.cpp
@@ -1559,7 +1505,6 @@ set(WebCore_SOURCES
 
     html/shadow/ContentDistributor.cpp
     html/shadow/DetailsMarkerControl.cpp
-    html/shadow/HTMLContentElement.cpp
     html/shadow/InsertionPoint.cpp
     html/shadow/MediaControlElementTypes.cpp
     html/shadow/MediaControlElements.cpp
@@ -1597,7 +1542,6 @@ set(WebCore_SOURCES
     inspector/InspectorDatabaseAgent.cpp
     inspector/InspectorDatabaseResource.cpp
     inspector/InspectorDebuggerAgent.cpp
-    inspector/InspectorFileSystemAgent.cpp
     inspector/InspectorFrontendClientLocal.cpp
     inspector/InspectorFrontendHost.cpp
     inspector/InspectorHeapProfilerAgent.cpp
@@ -1744,6 +1688,7 @@ set(WebCore_SOURCES
     page/GroupSettings.cpp
     page/History.cpp
     page/Location.cpp
+    page/MainFrame.cpp
     page/MouseEventWithHitTestResults.cpp
     page/Navigator.cpp
     page/NavigatorBase.cpp
@@ -1798,7 +1743,6 @@ set(WebCore_SOURCES
     page/scrolling/coordinatedgraphics/ScrollingStateScrollingNodeCoordinatedGraphics.cpp
 
     platform/Arena.cpp
-    platform/AsyncFileSystem.cpp
     platform/CalculationValue.cpp
     platform/Clock.cpp
     platform/ClockGeneric.cpp
@@ -1815,7 +1759,7 @@ set(WebCore_SOURCES
     platform/FileStream.cpp
     platform/FileSystem.cpp
     platform/HistogramSupport.cpp
-    platform/KURL.cpp
+    platform/URL.cpp
     platform/KillRingNone.cpp
     platform/Language.cpp
     platform/Length.cpp
@@ -2028,7 +1972,6 @@ set(WebCore_SOURCES
     platform/leveldb/LevelDBWriteBatch.cpp
 
     platform/mediastream/MediaStreamCenter.cpp
-    platform/mediastream/MediaStreamComponent.cpp
     platform/mediastream/MediaStreamDescriptor.cpp
     platform/mediastream/MediaStreamSource.cpp
     platform/mediastream/RTCIceCandidateDescriptor.cpp
@@ -2038,6 +1981,7 @@ set(WebCore_SOURCES
     platform/mock/DeviceMotionClientMock.cpp
     platform/mock/DeviceOrientationClientMock.cpp
     platform/mock/GeolocationClientMock.cpp
+    platform/mock/MockMediaStreamCenter.cpp
     platform/mock/ScrollbarThemeMock.cpp
 
     platform/network/AuthenticationChallengeBase.cpp
@@ -2094,8 +2038,6 @@ set(WebCore_SOURCES
     platform/text/TextEncodingRegistry.cpp
     platform/text/TextStream.cpp
     platform/text/UnicodeRange.cpp
-
-    platform/text/transcoder/FontTranscoder.cpp
 
     plugins/DOMMimeType.cpp
     plugins/DOMMimeTypeArray.cpp
@@ -2178,7 +2120,6 @@ set(WebCore_SOURCES
     rendering/RenderMultiColumnSet.cpp
     rendering/RenderNamedFlowThread.cpp
     rendering/RenderObject.cpp
-    rendering/RenderObjectChildList.cpp
     rendering/RenderProgress.cpp
     rendering/RenderQuote.cpp
     rendering/RenderRegion.cpp

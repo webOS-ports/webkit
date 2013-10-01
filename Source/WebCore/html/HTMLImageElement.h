@@ -63,7 +63,7 @@ public:
 
     void setHeight(int);
 
-    KURL src() const;
+    URL src() const;
     void setSrc(const String&);
 
     void setWidth(int);
@@ -72,6 +72,10 @@ public:
     int y() const;
 
     bool complete() const;
+
+#if PLATFORM(IOS)
+    virtual bool willRespondToMouseClickEvents() OVERRIDE;
+#endif
 
     bool hasPendingActivity() const { return m_imageLoader.hasPendingActivity(); }
 
@@ -100,7 +104,7 @@ private:
 
     virtual bool draggable() const;
 
-    virtual void addSubresourceAttributeURLs(ListHashSet<KURL>&) const;
+    virtual void addSubresourceAttributeURLs(ListHashSet<URL>&) const;
 
     virtual InsertionNotificationRequest insertedInto(ContainerNode*) OVERRIDE;
     virtual void removedFrom(ContainerNode*) OVERRIDE;

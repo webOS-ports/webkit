@@ -137,9 +137,6 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-const int MinimumWidthWhileResizing = 100;
-const int MinimumHeightWhileResizing = 40;
-
 bool ClipRect::intersects(const HitTestLocation& hitTestLocation) const
 {
     return hitTestLocation.intersects(m_rect);
@@ -312,7 +309,7 @@ RenderLayerCompositor& RenderLayer::compositor() const
 void RenderLayer::contentChanged(ContentChangeType changeType)
 {
     // This can get called when video becomes accelerated, so the layers may change.
-    if ((changeType == CanvasChanged || changeType == VideoChanged || changeType == FullScreenChanged) && compositor().updateLayerCompositingState(this))
+    if ((changeType == CanvasChanged || changeType == VideoChanged || changeType == FullScreenChanged) && compositor().updateLayerCompositingState(*this))
         compositor().setCompositingLayersNeedRebuild();
 
     if (m_backing)
@@ -1138,8 +1135,9 @@ void RenderLayer::updateDescendantDependentFlags(HashSet<const RenderObject*>* o
                     m_hasVisibleContent = true;
                     break;
                 }
-                if (r->firstChild() && !r->hasLayer())
-                    r = r->firstChild();
+                RenderObject* child;
+                if (!r->hasLayer() && (child = r->firstChildSlow()))
+                    r = child;
                 else if (r->nextSibling())
                     r = r->nextSibling();
                 else {
@@ -1166,7 +1164,7 @@ bool RenderLayer::updateDescendantClippingContext(bool addClipping)
         RenderLayerBacking* backing = child->backing();
         // Update layer context when new clipping is added or existing clipping is removed.
         if (backing && (addClipping || backing->hasAncestorClippingLayer())) {
-            if (backing->updateAncestorClippingLayer(compositor().clippedByAncestor(child)))
+            if (backing->updateAncestorClippingLayer(compositor().clippedByAncestor(*child)))
                 layerNeedsRebuild = true;
         }
 
@@ -1397,11 +1395,6 @@ RenderLayer* RenderLayer::enclosingScrollableLayer() const
 IntRect RenderLayer::scrollableAreaBoundingBox() const
 {
     return renderer().absoluteBoundingBoxRect();
-}
-
-bool RenderLayer::scrollbarAnimationsAreSuppressed() const
-{
-    return renderer().view().frameView().scrollbarAnimationsAreSuppressed();
 }
 
 RenderLayer* RenderLayer::enclosingTransformedAncestor() const
@@ -1797,7 +1790,7 @@ void RenderLayer::addChild(RenderLayer* child, RenderLayer* beforeChild)
         setAncestorChainHasOutOfFlowPositionedDescendant(child->renderer().containingBlock());
 
 #if USE(ACCELERATED_COMPOSITING)
-    compositor().layerWasAdded(this, child);
+    compositor().layerWasAdded(*this, *child);
 #endif
 }
 
@@ -1805,7 +1798,7 @@ RenderLayer* RenderLayer::removeChild(RenderLayer* oldChild)
 {
 #if USE(ACCELERATED_COMPOSITING)
     if (!renderer().documentBeingDestroyed())
-        compositor().layerWillBeRemoved(this, oldChild);
+        compositor().layerWillBeRemoved(*this, *oldChild);
 #endif
 
     // remove the child
@@ -1855,7 +1848,7 @@ void RenderLayer::removeOnlyThisLayer()
     renderer().setHasLayer(false);
 
 #if USE(ACCELERATED_COMPOSITING)
-    compositor().layerWillBeRemoved(m_parent, this);
+    compositor().layerWillBeRemoved(*m_parent, *this);
 #endif
 
     // Dirty the clip rects.
@@ -2166,7 +2159,7 @@ void RenderLayer::panScrollFromPoint(const IntPoint& sourcePoint)
     scrollByRecursively(adjustedScrollDelta(delta), ScrollOffsetClamped);
 }
 
-void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping clamp, ScrollView** scrolledView)
+void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping clamp, ScrollableArea** scrolledArea)
 {
     if (delta.isZero())
         return;
@@ -2178,14 +2171,14 @@ void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping
     if (renderer().hasOverflowClip() && !restrictedByLineClamp) {
         IntSize newScrollOffset = scrollOffset() + delta;
         scrollToOffset(newScrollOffset, clamp);
-        if (scrolledView)
-            *scrolledView = &renderer().view().frameView();
+        if (scrolledArea)
+            *scrolledArea = this;
 
         // If this layer can't do the scroll we ask the next layer up that can scroll to try
         IntSize remainingScrollOffset = newScrollOffset - scrollOffset();
         if (!remainingScrollOffset.isZero() && renderer().parent()) {
             if (RenderLayer* scrollableLayer = enclosingScrollableLayer())
-                scrollableLayer->scrollByRecursively(remainingScrollOffset, clamp, scrolledView);
+                scrollableLayer->scrollByRecursively(remainingScrollOffset, clamp, scrolledArea);
 
             renderer().frame().eventHandler().updateAutoscrollRenderer();
         }
@@ -2193,8 +2186,8 @@ void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping
         // If we are here, we were called on a renderer that can be programmatically scrolled, but doesn't
         // have an overflow clip. Which means that it is a document node that can be scrolled.
         renderer().view().frameView().scrollBy(delta);
-        if (scrolledView)
-            *scrolledView = &renderer().view().frameView();
+        if (scrolledArea)
+            *scrolledArea = &renderer().view().frameView();
 
         // FIXME: If we didn't scroll the whole way, do we want to try looking at the frames ownerElement? 
         // https://bugs.webkit.org/show_bug.cgi?id=28237
@@ -2752,11 +2745,6 @@ bool RenderLayer::shouldSuspendScrollAnimations() const
     return renderer().view().frameView().shouldSuspendScrollAnimations();
 }
 
-bool RenderLayer::scrollbarsCanBeActive() const
-{
-    return renderer().view().frameView().scrollbarsCanBeActive();
-}
-
 IntPoint RenderLayer::lastKnownMousePosition() const
 {
     return renderer().frame().eventHandler().lastKnownMousePosition();
@@ -3226,7 +3214,7 @@ void RenderLayer::updateScrollInfoAfterLayout()
 
 #if USE(ACCELERATED_COMPOSITING)
     // Composited scrolling may need to be enabled or disabled if the amount of overflow changed.
-    if (compositor().updateLayerCompositingState(this))
+    if (compositor().updateLayerCompositingState(*this))
         compositor().setCompositingLayersNeedRebuild();
 #endif
 }
@@ -5609,7 +5597,7 @@ RenderLayerBacking* RenderLayer::ensureBacking()
 {
     if (!m_backing) {
         m_backing = adoptPtr(new RenderLayerBacking(this));
-        compositor().layerBecameComposited(this);
+        compositor().layerBecameComposited(*this);
 
 #if ENABLE(CSS_FILTERS)
         updateOrRemoveFilterEffectRenderer();
@@ -5624,7 +5612,7 @@ RenderLayerBacking* RenderLayer::ensureBacking()
 void RenderLayer::clearBacking(bool layerBeingDestroyed)
 {
     if (m_backing && !renderer().documentBeingDestroyed())
-        compositor().layerBecameNonComposited(this);
+        compositor().layerBecameNonComposited(*this);
     m_backing.clear();
 
 #if ENABLE(CSS_FILTERS)
@@ -5746,14 +5734,14 @@ void RenderLayer::setParent(RenderLayer* parent)
 
 #if USE(ACCELERATED_COMPOSITING)
     if (m_parent && !renderer().documentBeingDestroyed())
-        compositor().layerWillBeRemoved(m_parent, this);
+        compositor().layerWillBeRemoved(*m_parent, *this);
 #endif
     
     m_parent = parent;
     
 #if USE(ACCELERATED_COMPOSITING)
     if (m_parent && !renderer().documentBeingDestroyed())
-        compositor().layerWasAdded(m_parent, this);
+        compositor().layerWasAdded(*m_parent, *this);
 #endif
 }
 
@@ -6254,7 +6242,7 @@ void RenderLayer::styleChanged(StyleDifference, const RenderStyle* oldStyle)
     updateNeedsCompositedScrolling();
 
     const RenderStyle* newStyle = renderer().style();
-    if (compositor().updateLayerCompositingState(this)
+    if (compositor().updateLayerCompositingState(*this)
         || needsCompositingLayersRebuiltForClip(oldStyle, newStyle)
         || needsCompositingLayersRebuiltForOverflow(oldStyle, newStyle))
         compositor().setCompositingLayersNeedRebuild();

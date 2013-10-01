@@ -115,7 +115,7 @@ public:
     bool parseQuotes(CSSPropertyID, bool important);
 
 #if ENABLE(CSS_VARIABLES)
-    static bool parseValue(MutableStylePropertySet*, CSSPropertyID, const String&, bool important, Document*);
+    static bool parseValue(MutableStylePropertySet*, CSSPropertyID, const String&, bool important, Document&);
     bool cssVariablesEnabled() const;
     void storeVariableDeclaration(const CSSParserString&, PassOwnPtr<CSSParserValueList>, bool important);
 #endif
@@ -422,7 +422,7 @@ public:
     PassRefPtr<CSSPrimitiveValue> createPrimitiveVariableNameValue(CSSParserValue*);
 #endif
 
-    static KURL completeURL(const CSSParserContext&, const String& url);
+    static URL completeURL(const CSSParserContext&, const String& url);
 
     Location currentLocation();
 
@@ -502,7 +502,7 @@ private:
     inline bool inStrictMode() const { return m_context.mode == CSSStrictMode || m_context.mode == SVGAttributeMode; }
     inline bool inQuirksMode() const { return m_context.mode == CSSQuirksMode; }
     
-    KURL completeURL(const String& url) const;
+    URL completeURL(const String& url) const;
 
     void recheckAtKeyword(const UChar* str, int len);
 

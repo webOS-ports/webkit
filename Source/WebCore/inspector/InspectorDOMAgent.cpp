@@ -60,7 +60,6 @@
 #include "EventTarget.h"
 #include "File.h"
 #include "FileList.h"
-#include "Frame.h"
 #include "FrameTree.h"
 #include "HTMLElement.h"
 #include "HTMLFrameOwnerElement.h"
@@ -79,6 +78,7 @@
 #include "InstrumentingAgents.h"
 #include "IntRect.h"
 #include "JSEventListener.h"
+#include "MainFrame.h"
 #include "MutationEvent.h"
 #include "Node.h"
 #include "NodeList.h"
@@ -669,7 +669,7 @@ void InspectorDOMAgent::setAttributesAsText(ErrorString* errorString, int elemen
     if (!element)
         return;
 
-    RefPtr<HTMLElement> parsedElement = createHTMLElement(&element->document(), spanTag);
+    RefPtr<HTMLElement> parsedElement = createHTMLElement(element->document(), spanTag);
     ExceptionCode ec = 0;
     parsedElement.get()->setInnerHTML("<span " + text + "></span>", ec);
     if (ec) {
